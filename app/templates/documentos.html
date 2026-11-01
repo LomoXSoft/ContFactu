@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block c %}<div class="card"><form class="acciones">
+<input type="hidden" name="tipo" value="{{tipo}}"><strong>{{ico(ICONO_TIPO.get(tipo,"factura"),24)}}{{PLURAL[tipo]}}</strong>
+<select name="anio" onchange="this.form.submit()">{% for a in anios %}<option {{'selected' if a==anio}}>{{a}}</option>{% endfor %}
+<option value="todos" {{'selected' if anio=='todos'}}>Todos los años</option></select>
+<input name="q" value="{{q}}" placeholder="Nombre, número o NIF"><button class="btn">{{ico('buscar')}}Filtrar</button>
+<a class="btn sec" href="/e/{{e.id}}/nuevo/{{tipo}}">{{ico('nuevo')}}{{'Nuevo' if tipo in 'GPA' else 'Nueva'}} {{TIPOS[tipo]|lower}}</a>
+{% if tipo in 'AP' %}<a class="btn sec" href="/e/{{e.id}}/facturar?tipo={{tipo}}">{{ico('facturar')}}Pasar a factura…</a>{% endif %}</form></div>
+{% if ok == 'empresa' %}<div class="card okmsg">✔ Empresa «{{e.nombre}}» creada. Ya puede dar de alta
+<a href="/e/{{e.id}}/clientes/nuevo">clientes</a> y <a href="/e/{{e.id}}/proveedores/nuevo">proveedores</a>, o emitir la
+<a href="/e/{{e.id}}/nuevo/F">primera factura</a>. Los datos de la empresa se cambian en <a href="/e/{{e.id}}/empresa">Empresa</a>.</div>{% endif %}
+<div class="card"><p class="muted">{{docs|length}} documentos · total {{suma|eur}} €</p>
+<table><tr><th>Número</th><th>Fecha</th><th>{{'Proveedor' if tipo=='G' else 'Cliente'}}</th><th>NIF</th><th class="n">Total</th><th>Estado</th><th></th></tr>
+{% for d in docs %}<tr><td><a href="/d/{{d.id}}">{{ico("rectificar" if d.rect_original_id else ICONO_TIPO.get(d.tipo,"factura"),16)}}{{d|num or '(sin número)'}}</a></td><td>{{d.fecha|fecha}}</td><td>{{d.nombre_f or ''}}</td>
+<td>{{d.nif or ''}}</td><td class="n">{{d.total|eur}} €</td><td>
+{% if d.rect_original_id %}<span class="et rect">rectificativa</span> {% endif %}
+{% if tipo in 'AP' %}{% if d.facturado %}<span class="et facturado">facturado</span>{% else %}<span class="muted">sin facturar</span>{% endif %}
+{% elif tipo in 'FM' %}<span class="et {{d.estado}}">{{d.estado}}</span>{% endif %}</td>
+<td><a href="/d/{{d.id}}/pdf" target="_blank" title="Ver / imprimir PDF">{{ico("pdf",18)}}</a></td></tr>{% endfor %}
+</table></div>{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block c %}<div class="card"><h2>Pasar {{PLURAL[tipo]|lower}} a factura</h2>
+<p class="muted">Marque uno o varios {{PLURAL[tipo]|lower}} <b>del mismo cliente</b>. Se creará una factura con todas sus líneas (con una línea
+de referencia a cada documento) y quedarán marcados como facturados, igual que en FactuCont.</p>
+<form class="acciones"><input type="hidden" name="tipo" value="{{tipo}}"><label>Cliente <select name="cliente" onchange="this.form.submit()" style="width:auto">
+<option value="">— todos —</option>{% for c in clientes %}<option {{'selected' if c==cliente}}>{{c}}</option>{% endfor %}</select></label></form></div>
+<form method="post" class="card" onsubmit="if(!document.querySelector('[name=ids]:checked')){alert('Marque al menos un documento');return false}">
+<table><tr><th></th><th>Número</th><th>Fecha</th><th>Cliente</th><th class="n">Total</th></tr>
+{% for d in docs %}<tr><td><input type="checkbox" name="ids" value="{{d.id}}" style="width:auto"></td><td><a href="/d/{{d.id}}">{{d|num or '(sin número)'}}</a></td>
+<td>{{d.fecha|fecha}}</td><td>{{d.nombre_f or ''}}</td><td class="n">{{d.total|eur}} €</td></tr>
+{% else %}<tr><td colspan=5 class="muted">No hay {{PLURAL[tipo]|lower}} sin facturar.</td></tr>{% endfor %}</table>
+<div class="grid" style="margin-top:1rem;align-items:end"><label>Fecha de la factura<input type="date" name="fecha" value="{{hoy}}"></label>
+<label>Serie (opcional)<input name="serie" maxlength="3"></label><div><button class="btn">{{ico('facturar')}}Crear factura</button></div></div></form>{% endblock %}

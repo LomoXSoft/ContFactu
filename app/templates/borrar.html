@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block c %}<form method="post" class="card"><h2>¿Borrar {{TIPOS[doc.tipo]|lower}} {{doc|num}}?</h2>
+<p>{{doc.nombre_f or ''}} · {{doc.fecha|fecha}} · total {{doc.total|eur}} €</p>
+{% for b in bloqueos %}<div class="card aviso error">⛔ {{b}}</div>{% endfor %}
+{% for a in avisos %}<div class="card aviso">⚠ {{a}}</div>{% endfor %}
+{% if not bloqueos %}
+{% if rompe_numeracion %}<p><a class="btn" href="/d/{{doc.id}}/rectificar">{{ico('rectificar')}}Emitir una rectificativa en su lugar (recomendado)</a></p>
+<label style="font-size:1rem;color:#b42318"><input type="checkbox" name="forzar" value="1" style="width:auto" required> Entiendo que quedará un hueco en la numeración y quiero borrarla igualmente</label>{% endif %}
+<label style="font-size:1rem;margin:.6rem 0"><input type="checkbox" name="confirmar" value="1" style="width:auto" required> Sí, quiero borrar este documento definitivamente (no se puede deshacer)</label>
+<p class="acciones"><button class="btn peligro">{{ico('borrar')}}Borrar</button><a class="btn sec" href="/d/{{doc.id}}">{{ico('cancelar')}}Cancelar</a></p>{% else %}
+<p><a class="btn sec" href="/d/{{doc.id}}">{{ico('volver')}}Volver</a></p>{% endif %}</form>{% endblock %}

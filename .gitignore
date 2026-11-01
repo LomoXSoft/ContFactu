@@ -1,0 +1,23 @@
+# Datos reales y generados: NUNCA en el repositorio
+datos/
+datos_demo/
+ejemplos/
+*.db
+*.dbf
+*.rar
+__pycache__/
+.pytest_cache/
+venv*/
+build/
+dist/
+instalador/Output/
+instalador/7zip/
+*.log
+*.pdf
+*.fmt
+*.zip
+*.exe
+.venv/
+venv-win/
+.idea/
+.vscode/

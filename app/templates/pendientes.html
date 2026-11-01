@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block c %}<div class="card"><h2>{{ico("cobros",26)}}Cobros pendientes</h2>
+<p>{{docs|length}} documentos · pendiente total <b>{{suma|eur}} €</b> · de ello vencido <b style="color:#b42318">{{vencido|eur}} €</b></p>
+<table><tr><th>Documento</th><th>Fecha</th><th>Cliente</th><th>Vencimiento</th><th class="n">Total</th><th class="n">Pendiente</th><th>Estado</th><th></th></tr>
+{% for d in docs %}<tr><td><a href="/d/{{d.id}}">{{TIPOS[d.tipo]}} {{d|num}}</a></td><td>{{d.fecha|fecha}}</td><td>{{d.nombre_f or ''}}</td>
+<td {% if d.vencido %}style="color:#b42318;font-weight:600"{% endif %}>{{d.vencimiento|fecha}}{{' (vencido)' if d.vencido}}</td>
+<td class="n">{{d.total|eur}}</td><td class="n"><b>{{d.pendiente|eur}}</b></td><td><span class="et {{d.estado}}">{{d.estado}}</span></td>
+<td><a href="/d/{{d.id}}#cobros">Cobrar</a> · <a href="/d/{{d.id}}/recibos" target="_blank">Recibo</a></td></tr>
+{% else %}<tr><td colspan=8 class="muted">No hay nada pendiente de cobro.</td></tr>{% endfor %}</table></div>{% endblock %}

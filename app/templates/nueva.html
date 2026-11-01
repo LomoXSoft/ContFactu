@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block c %}<form method="post" class="card"><h2>Nueva factura <span class="muted">(número previsto {{siguiente}})</span></h2>
+<div class="grid"><label>Fecha<input type="date" name="fecha" value="{{hoy}}" required></label><label>Serie (opcional, máx. 3)<input name="serie" maxlength="3"></label>
+<label>Cliente<select onchange="location='?cliente='+encodeURIComponent(this.value)"><option value="">— escribir a mano —</option>
+{% for c in clientes %}<option value="{{c.codigo}}" {{'selected' if sel and sel.codigo==c.codigo}}>{{c.nombre}}</option>{% endfor %}</select></label></div>
+<input type="hidden" name="cliente_codigo" value="{{sel.codigo if sel else ''}}">
+<div class="grid" style="margin-top:.6rem"><label>Nombre fiscal<input name="nombre_f" required value="{{(sel.nombre_f or sel.nombre) if sel else ''}}"></label>
+<label>Dirección<input name="direccion_f" value="{{(sel.direccion_f or sel.direccion) if sel else ''}}"></label>
+<label>Población<input name="ciudad_f" value="{{(sel.ciudad_f or sel.ciudad) if sel else ''}}"></label><label>NIF<input name="nif" value="{{sel.nif if sel else ''}}"></label>
+<label>Forma de pago<input name="forma_pago" value="{{sel.forma_pago if sel and sel.forma_pago else ''}}"></label>
+<label>Descuento general %<input name="descuento" value="0"></label><label>Retención IRPF %<input name="retencion" value="0"></label>
+<label>Recargo de equivalencia<select name="re"><option value="0">No</option><option value="1" {{'selected' if sel and sel.recargo}}>Sí</option></select></label></div>
+<h3>Líneas <span class="muted" style="font-size:.85rem">(una línea sin precio se imprime como comentario)</span></h3>
+<table id="t"><tr><th>Código</th><th style="width:45%">Concepto</th><th>Cant.</th><th>Precio</th><th>Dto.%</th><th>IVA%</th></tr></table>
+<input type="hidden" name="n_lineas" id="n" value="0"><p><button type="button" class="btn sec" onclick="add()">+ Añadir línea</button></p>
+<p><button class="btn">Guardar factura</button></p></form>
+<script>function add(){const i=+n.value;const r=t.insertRow();r.innerHTML=`<td><input name="codigo_${i}" size=6></td><td><input name="concepto_${i}" style="width:100%"></td>
+<td><input name="cantidad_${i}" size=5 value="1"></td><td><input name="precio_${i}" size=8></td><td><input name="descuento_${i}" size=3></td><td><input name="iva_${i}" size=3 value="21"></td>`;n.value=i+1}
+for(let k=0;k<5;k++)add()</script>{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% block c %}
+{% set es_g = tipo == 'G' %}
+<form method="post" class="card" id="f" action="{% if rectifica %}/d/{{rectifica.id}}/rectificar{% else %}/e/{{e.id}}/guardar/{{tipo}}{% endif %}">
+{% if rectifica %}<h2>Factura rectificativa de la {{rectifica|num}} <span class="muted">(número previsto R{{siguiente}})</span></h2>
+<div class="card aviso">La rectificativa lleva serie propia (<b>R</b>), cita la factura original y el motivo. <b>Por diferencias</b>: solo
+la diferencia (las líneas se proponen en negativo para anular; ajuste las cantidades si es parcial). <b>Por sustitución</b>: la factura correcta
+completa; la original deja de estar pendiente de cobro.</div>
+<div class="grid"><label>Tipo de rectificación<select name="rect_tipo" onchange="location='?modo='+this.value">
+<option value="I" {{'selected' if modo=='I'}}>Por diferencias</option><option value="S" {{'selected' if modo=='S'}}>Por sustitución</option></select></label>
+<label>Causa (VeriFactu)<select name="codigo_r">{% for k,v in MOTIVOS_R.items() %}<option value="{{k}}" {{'selected' if k=='R4'}}>{{k}} – {{v}}</option>{% endfor %}</select></label>
+<label style="grid-column:span 2">Motivo (se imprime)<input name="rect_motivo" required placeholder="p. ej. Devolución de mercancía / error en el precio"></label></div><br>
+{% elif nuevo %}<h2>{{'Nuevo' if tipo in 'GPAD' else 'Nueva'}} {{TIPOS[tipo]|lower}} <span class="muted">(número previsto {{siguiente}})</span></h2>
+{% else %}<h2>Modificar {{TIPOS[tipo]|lower}} {{d|num}}</h2><input type="hidden" name="id" value="{{d.id}}">
+{% if aviso_legal %}<div class="card aviso">⚠ {{aviso_legal}}</div>{% endif %}{% endif %}
+<div class="grid"><label>Fecha<input type="date" name="fecha" value="{{d.fecha}}" required></label>
+{% if nuevo and not rectifica %}<label>Serie (opcional, máx. 3)<input name="serie" maxlength="3" value="{{serie_defecto or ''}}" style="text-transform:uppercase"></label>{% endif %}
+{% if es_g %}<label>Nº de factura del proveedor<input name="num_factura_proveedor" value="{{d.num_factura_proveedor or ''}}"></label>{% endif %}
+<label>{{'Proveedor' if es_g else 'Cliente'}} (buscar)<input list="terceros" id="buscar" placeholder="Escriba para buscar…" onchange="elegir(this.value)">
+<datalist id="terceros">{% for c in terceros %}<option value="{{c.nombre}}">{% endfor %}</datalist></label></div>
+<input type="hidden" name="cliente_codigo" id="cliente_codigo" value="{{d.cliente_codigo or ''}}">
+<div class="grid" style="margin-top:.6rem"><label>Nombre fiscal<input name="nombre_f" id="nombre_f" required value="{{d.nombre_f or ''}}"></label>
+<label>Dirección<input name="direccion_f" id="direccion_f" value="{{d.direccion_f or ''}}"></label>
+<label>Población<input name="ciudad_f" id="ciudad_f" value="{{d.ciudad_f or ''}}"></label><label>NIF<input name="nif" id="nif" value="{{d.nif or ''}}"></label>
+<label>Forma de pago<input name="forma_pago" id="forma_pago" value="{{d.forma_pago or ''}}"></label>
+<label>Descuento general %<input name="descuento" id="descuento" value="{{d.descuento or '0'}}" oninput="calc()"></label>
+<label>Retención IRPF %<input name="retencion" id="retencion" value="{{d.retencion or '0'}}" oninput="calc()"></label>
+<label>Recargo de equivalencia<select name="re" id="re" onchange="calc()"><option value="0">No</option><option value="1" {{'selected' if con_re}}>Sí</option></select></label>
+<label>Precios<select name="iva_incluido" id="iva_incluido" onchange="calc()"><option value="0">Sin IVA</option><option value="1" {{'selected' if d.iva_incluido}}>IVA incluido</option></select></label>
+<label>Banco (domiciliación)<input name="domiciliacion" value="{{d.domiciliacion or ''}}"></label><label>Cuenta (IBAN/CCC)<input name="ccc" value="{{d.ccc or ''}}"></label></div>
+<h3 style="margin-top:1rem">Líneas <span class="muted" style="font-size:.85rem">(una línea sin precio se imprime como comentario)</span></h3>
+<table id="t"><tr><th>Código</th><th style="width:44%">Concepto</th><th>Cant.</th><th>Precio</th><th>Dto.%</th><th>IVA%</th><th class="n">Importe</th><th></th></tr></table>
+<datalist id="ivas">{% for v in ivas or [] %}<option value="{{v}}">{% endfor %}</datalist><input type="hidden" name="n_lineas" id="n" value="0"><p><button type="button" class="btn sec" onclick="add({})">{{ico('nuevo')}}Añadir línea</button></p>
+<div style="text-align:right;font-size:1.05rem" id="resumen"></div>
+<p class="muted">Los totales definitivos los recalcula el programa al guardar (redondeo por tipo de IVA, como FactuCont).</p>
+<p class="acciones"><button class="btn">{{ico('rectificar' if rectifica else 'guardar')}}{{'Crear rectificativa' if rectifica else 'Guardar'}}</button>
+<a class="btn sec" href="{{('/d/%d' % (rectifica.id if rectifica else d.id)) if (rectifica or not nuevo) else '/e/%d/documentos?tipo=%s' % (e.id, tipo)}}">{{ico('cancelar')}}Cancelar</a></p></form>
+<script>
+const TER={{terceros_json|safe}}, LIN={{lineas_json|safe}}, IVA_DEF={{ (ivas[0] if ivas else '21')|tojson }};
+const n=document.getElementById('n'), t=document.getElementById('t');
+function num(v){v=(v||'').trim();if(v.includes(','))v=v.replace(/\./g,'').replace(',','.');return parseFloat(v)||0}
+function fmt(x){return x.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function add(l){const i=+n.value;const r=t.insertRow();const c=l.comentario;
+r.innerHTML=`<td><input name="codigo_${i}" size=6 value="${esc(l.codigo)}"></td><td><input name="concepto_${i}" style="width:100%" value="${esc(l.concepto)}"></td>
+<td><input name="cantidad_${i}" size=5 value="${c?'':esc(l.cantidad||'1')}" oninput="calc()"></td><td><input name="precio_${i}" size=8 value="${c?'':esc(l.precio)}" oninput="calc()"></td>
+<td><input name="descuento_${i}" size=3 value="${c||l.descuento=='0'?'':esc(l.descuento)}" oninput="calc()"></td><td><input name="iva_${i}" size=3 list="ivas" value="${c?'':esc(l.iva||IVA_DEF)}" oninput="calc()"></td>
+<td class="n" id="imp_${i}"></td><td><button type="button" class="btn sec peq" title="Quitar línea" onclick="this.closest('tr').remove();calc()">✕</button></td>`;n.value=i+1;calc()}
+function elegir(nombre){const c=TER.find(x=>x.nombre===nombre);if(!c)return;
+for(const [k,src] of [['nombre_f',c.nombre_f||c.nombre],['direccion_f',c.direccion_f||c.direccion],['ciudad_f',c.ciudad_f||c.ciudad],['nif',c.nif],['forma_pago',c.forma_pago]])document.getElementById(k).value=src||'';
+document.getElementById('cliente_codigo').value=c.codigo||'';document.getElementById('re').value=c.recargo?'1':'0';calc()}
+const RE={'21':5.2,'10':1.4,'5':0.62,'4':0.5};
+function calc(){const g={};const inc=document.getElementById('iva_incluido').value=='1';
+for(let i=0;i<+n.value;i++){const p=document.querySelector(`[name=precio_${i}]`);if(!p)continue;const cel=document.getElementById('imp_'+i);
+if(!p.value.trim()){cel.textContent='';continue}
+let imp=num(document.querySelector(`[name=cantidad_${i}]`).value)*num(p.value)*(1-num(document.querySelector(`[name=descuento_${i}]`).value)/100);
+cel.textContent=fmt(imp);const iva=num(document.querySelector(`[name=iva_${i}]`).value);if(inc)imp=imp/(1+iva/100);g[iva]=(g[iva]||0)+imp}
+const f=1-num(document.getElementById('descuento').value)/100;let base=0,cuota=0,re=0;const conre=document.getElementById('re').value=='1';
+for(const k in g){const b=Math.round(g[k]*f*100)/100;base+=b;cuota+=Math.round(b*k)/100;if(conre)re+=Math.round(b*(RE[k]||0))/100}
+const ret=Math.round(base*num(document.getElementById('retencion').value))/100;
+document.getElementById('resumen').innerHTML=`Base <b>${fmt(base)}</b> · IVA <b>${fmt(cuota)}</b>${re?` · RE <b>${fmt(re)}</b>`:''}${ret?` · Retención <b>-${fmt(ret)}</b>`:''} · TOTAL <b>${fmt(base+cuota+re-ret)} €</b>`}
+LIN.forEach(add);for(let k=LIN.length;k<Math.max(3,LIN.length+1);k++)add({});
+</script>{% endblock %}

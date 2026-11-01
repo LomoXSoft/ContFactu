@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block c %}
+<form method="post" enctype="multipart/form-data" class="card" style="max-width:980px;margin:auto"
+      action="{{'/empresas/nueva' if nueva else '/e/%d/empresa'|format(e.id)}}">
+<h2>{{ico('empresa',26)}}{% if nueva %}Nueva empresa{% else %}Datos de la empresa{% endif %}</h2>
+{% if error %}<div class="aviso error" style="margin-bottom:.8rem">⚠ {{error}}</div>{% endif %}
+{% if ok %}<div class="okmsg" style="margin-bottom:.8rem">✔ Datos guardados.</div>{% endif %}
+{% if nueva %}<p class="muted">Estos datos aparecen en las facturas. Los marcados con * son obligatorios. Todo se puede cambiar después en «Empresa».</p>{% endif %}
+<h3>Datos fiscales</h3>
+<div class="grid">
+<label style="grid-column:span 2">Nombre o razón social *<input name="nombre" required maxlength="120" value="{{x.nombre or ''}}" placeholder="p. ej. Ferretería Ejemplo, S.L." autofocus></label>
+<label>NIF / CIF *<input name="nif" required maxlength="15" value="{{x.nif or ''}}" placeholder="B12345674" style="text-transform:uppercase"></label>
+<label>Código de empresa<input name="codigo" maxlength="5" value="{{x.codigo or ''}}" placeholder="00001" inputmode="numeric"></label>
+<label style="grid-column:span 2">Dirección<input name="direccion" maxlength="120" value="{{x.direccion or ''}}"></label>
+<label>Código postal<input name="cp" maxlength="5" value="{{x.cp or ''}}" inputmode="numeric"></label>
+<label>Población<input name="ciudad" maxlength="60" value="{{x.ciudad or ''}}"></label>
+<label>Provincia<input name="provincia" maxlength="40" value="{{x.provincia or ''}}"></label>
+<label>Teléfono<input name="telefono" maxlength="30" value="{{x.telefono or ''}}"></label>
+<label>Correo electrónico<input name="email" type="email" maxlength="80" value="{{x.email or ''}}"></label>
+<label>Actividad<input name="actividad" maxlength="80" value="{{x.actividad or ''}}"></label>
+<label style="grid-column:span 2">Cuenta bancaria (IBAN) para cobros por transferencia<input name="ccc" maxlength="34" value="{{x.ccc or ''}}" placeholder="ES00 0000 0000 0000 0000 0000"></label>
+<label>BIC<input name="bic" maxlength="11" value="{{x.bic or ''}}"></label>
+</div>
+<h3 style="margin-top:1.2rem">{{ico('factura',20)}}Facturación</h3>
+<div class="grid">
+<label>Serie de facturas (opcional, máx. 3)<input name="serie_defecto" maxlength="3" value="{{x.serie_defecto or ''}}" placeholder="sin serie" style="text-transform:uppercase"></label>
+<label>Primer número de factura<input name="contador_inicial" type="number" min="1" max="99999" value="{{x.contador_inicial or 1}}"
+  {% if tiene_facturas %}disabled title="Ya hay facturas emitidas: la numeración sigue a la última"{% endif %}></label>
+<label style="grid-column:span 2">Tipos de IVA habituales (el primero se propone por defecto)<input name="ivas" value="{{x.ivas or ''}}" placeholder="21, 10, 4, 0"></label>
+</div>
+<p class="muted" style="font-size:.88rem">Numeración: <b>serie + año (2 cifras) + correlativo</b>, como en FactuCont; el correlativo vuelve a 1 cada año.
+Ejemplo de la primera factura: <b id="ej"></b>. Si la empresa ya facturaba con otro programa este año, ponga como primer número el siguiente al último emitido.
+Las rectificativas llevan su propia serie <b>R</b>.</p>
+<h3 style="margin-top:1.2rem">Logotipo (opcional)</h3>
+<div class="acciones">{% if logo %}<img src="/e/{{e.id}}/logo" alt="Logotipo" style="max-height:60px;max-width:180px;border:1px solid #e4e7ec;padding:4px;border-radius:4px">
+<label style="display:inline-flex;gap:.3rem;align-items:center"><input type="checkbox" name="quitar_logo" value="1" style="width:auto">Quitar logotipo</label>{% endif %}
+<label>PNG o JPG, máx. 2 MB. Sale arriba a la izquierda en las facturas.<input type="file" name="logo" accept=".png,.jpg,.jpeg"></label></div>
+<p class="acciones" style="margin-top:1.3rem"><button class="btn">{{ico('aceptar')}}{{'Crear empresa' if nueva else 'Guardar'}}</button>
+<a class="btn sec" href="{{'/' if (hay or not nueva) else '/bienvenida'}}">{{ico('cancelar')}}Cancelar</a></p>
+</form>
+<script>(function(){const s=document.querySelector('[name=serie_defecto]'),c=document.querySelector('[name=contador_inicial]'),ej=document.getElementById('ej');
+function f(){const n=Math.max(1,parseInt(c.value)||1);ej.textContent=(s.value||'').toUpperCase()+'{{anio}}'+String(n).padStart(Math.max(4,String(n).length),'0')}
+s.addEventListener('input',f);c.addEventListener('input',f);f()})();</script>
+{% endblock %}

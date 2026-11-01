@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block c %}
+<style>.elegir{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-top:1rem}
+.opcion{display:block;background:#fff;border:2px solid #c5ccd6;border-radius:10px;padding:1.3rem 1.4rem;text-decoration:none;color:inherit;transition:.15s}
+.opcion:hover,.opcion:focus{border-color:var(--azul);box-shadow:0 3px 12px #00407f22}
+.opcion h3{display:flex;align-items:center;gap:.5rem;color:var(--azul);margin:0 0 .5rem;font-size:1.2rem}.opcion .ico{margin:0}
+.opcion ul{margin:.5rem 0 0;padding-left:1.1rem;color:#475467;font-size:.92rem}.opcion .btn{margin-top:1rem}
+@media(max-width:760px){.elegir{grid-template-columns:1fr}}</style>
+<div class="card" style="max-width:900px;margin:auto">
+<h2>{{ico('contfactu',26)}}Bienvenido a ContFactu</h2>
+<p>{% if hay %}¿Qué quiere hacer?{% else %}Es la primera vez que se abre ContFactu en este ordenador. ¿Cómo quiere empezar?{% endif %}</p>
+<div class="elegir">
+<a class="opcion" href="/empresas/nueva"><h3>{{ico('empresa',34)}}Empezar desde cero</h3>
+<div>Dar de alta una empresa nueva, sin datos anteriores.</div>
+<ul><li>Datos fiscales (razón social, NIF/CIF, dirección)</li><li>Serie y primer número de factura</li>
+<li>Tipos de IVA habituales y logotipo (opcional)</li></ul>
+<span class="btn">{{ico('nuevo')}}Crear empresa nueva</span></a>
+<a class="opcion" href="/asistente"><h3>{{ico('importar',34)}}Importar de FactuCont</h3>
+<div>Traer empresas, clientes, proveedores y documentos de <b>FactuCont 5</b>.</div>
+<ul><li>Desde la carpeta FC5, o un .zip o .rar con ella</li><li>FactuCont no se modifica: solo se leen sus archivos</li>
+<li>Se puede hacer también más adelante, desde «Importar de FactuCont»</li></ul>
+<span class="btn sec">{{ico('importar')}}Importar datos antiguos</span></a></div>
+<p class="muted" style="margin-top:1.2rem">Puede tener varias empresas: más adelante podrá crear otras o importar más desde la lista de empresas.
+Sus datos se guardan en <code>{{datos}}</code>.</p></div>{% endblock %}

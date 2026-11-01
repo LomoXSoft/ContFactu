@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block t %}Acerca de ContFactu{% endblock %}{% block c %}<div class="card" style="max-width:760px;margin:auto">
+<h2>{{ico('contfactu',30)}}ContFactu {{VERSION}}</h2>
+<p><img src="/splash.png" alt="Pantalla de carga de ContFactu" width="190" height="190" style="float:right;margin:0 0 .6rem 1rem;border-radius:4px;box-shadow:0 1px 4px #0003">Programa de facturación propio, sucesor de FactuCont 5. Funciona en su propia ventana y guarda los datos solo en este ordenador.</p>
+<table style="max-width:640px"><tr><th>Versión</th><td>{{VERSION}}</td></tr><tr><th>Autor</th><td>LomoXSoft</td></tr>
+<tr><th>Programa</th><td><code>{{programa}}</code></td></tr><tr><th>Datos</th><td><code>{{datos}}</code> <span class="muted">(base de datos, logotipos, registro y perfil de la ventana)</span></td></tr><tr><th>Modo de pantalla</th><td>{{modo}}</td></tr>
+<tr><th>Python</th><td>{{python}}</td></tr></table>
+<h3 style="margin-top:1rem">Iconos</h3><p class="muted">Dibujados para ContFactu imitando el color y la forma de los de FactuCont, para reconocer cada función.</p>
+<div class="acciones">{% for n in iconos %}<span style="display:inline-flex;align-items:center;width:150px">{{ico(n,24)}}{{n}}</span>{% endfor %}</div>
+<p class="muted" style="margin-top:1rem">ContFactu © 2026 LomoXSoft. Es software libre: puede redistribuirlo y modificarlo según la <b>Licencia Pública General de GNU, versión 3</b> (GPL-3.0-or-later), publicada por la Free Software Foundation. Se distribuye SIN NINGUNA GARANTÍA. Código fuente: <code>https://github.com/LomoXSoft/ContFactu</code>.<br>No está afiliado a Binarema ni respaldado por ella; lee los datos de FactuCont 5 solo para que pueda pasarlos a ContFactu.<br>Incluye 7-Zip (GNU LGPL + restricción unRAR, © Igor Pavlov) para abrir copias .rar. Los cambios de cada versión están en CHANGELOG.md.</p></div>{% endblock %}

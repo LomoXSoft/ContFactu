@@ -1,0 +1,53 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{% block t %}ContFactu {{VERSION}}{% endblock %}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--azul:#00407f;--claro:#dff0ff;--gris:#f5f6f8;--rojo:#b42318;--verde:#067647}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,Segoe UI,Arial,sans-serif;color:#1d2433;background:var(--gris)}
+header{background:var(--azul);color:#fff;padding:.6rem 1.4rem;display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap}
+header a{color:#fff;text-decoration:none}header .emp{font-weight:600;font-size:1.05rem}header nav a{margin-right:.9rem;opacity:.92;white-space:nowrap}
+header nav a:hover{opacity:1;text-decoration:underline}
+main{max-width:1180px;margin:1.2rem auto;padding:0 1rem}
+.card{background:#fff;border-radius:8px;box-shadow:0 1px 3px #0002;padding:1rem 1.2rem;margin-bottom:1rem}
+table{width:100%;border-collapse:collapse}th,td{padding:.4rem .5rem;border-bottom:1px solid #e4e7ec;text-align:left;vertical-align:top}
+th{background:var(--claro);font-weight:600}td.n,th.n{text-align:right;white-space:nowrap}tr:hover td{background:#fafcff}
+a{color:var(--azul)}input,select,textarea{font:inherit;padding:.35rem .45rem;border:1px solid #c5ccd6;border-radius:5px}
+.btn{display:inline-block;background:var(--azul);color:#fff;border:0;border-radius:6px;padding:.45rem .9rem;text-decoration:none;cursor:pointer;font:inherit}
+.btn.sec{background:#fff;color:var(--azul);border:1px solid var(--azul)}.btn.peligro{background:var(--rojo)}.btn.peq{padding:.2rem .55rem;font-size:.85rem}
+.aviso{background:#fff4d6;border-left:4px solid #e0a800;padding:.6rem .9rem}.error{background:#fde8e7;border-left:4px solid var(--rojo)}
+.okmsg{background:#e3f7ec;border-left:4px solid var(--verde);padding:.6rem .9rem}
+.muted{color:#667085}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem}label{display:block;font-size:.85rem;color:#475467}
+label input,label select,label textarea{width:100%}.acciones{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.et{display:inline-block;border-radius:10px;padding:0 .5rem;font-size:.8rem;font-weight:600}
+.et.cobrado{background:#e3f7ec;color:var(--verde)}.et.pendiente{background:#fde8e7;color:var(--rojo)}.et.parcial{background:#fff4d6;color:#8a5a00}
+.et.facturado{background:#e8eefc;color:#2342a0}.et.rect{background:#f3e8ff;color:#6b21a8}
+h2{margin:.2rem 0 .6rem}
+.ico{vertical-align:-4px;margin-right:.38rem;flex:none}.btn .ico{background:#fff;border-radius:4px;padding:1px;margin-left:-.25rem}
+.btn.sec .ico{background:none;padding:0}.btn.peq .ico{width:15px;height:15px;vertical-align:-3px}
+header nav{display:flex;flex-wrap:wrap;gap:.15rem}header nav a{display:inline-flex;align-items:center;margin-right:.2rem;padding:.25rem .5rem;border-radius:6px}
+header nav a .ico{background:#fff;border-radius:4px;padding:1px;margin-right:.35rem}header nav a.activo{background:#ffffff26;opacity:1}
+header .marca{display:inline-flex;align-items:center}header .marca .ico{background:#fff;border-radius:4px;padding:1px}h3{margin:.4rem 0 .5rem}
+</style></head><body>
+<header><a href="/" class="emp marca">{{ico('contfactu',22)}}ContFactu</a>{% if e %}<span class="emp">{{ e.nombre }}</span>
+<nav>{% set A = request.url.path ~ '?' ~ request.url.query %}
+{% for href, icono, txt in [("/e/%d/documentos?tipo=F"|format(e.id),"factura","Facturas"),("/e/%d/documentos?tipo=P"|format(e.id),"presupuesto","Presupuestos"),
+("/e/%d/documentos?tipo=A"|format(e.id),"albaran","Albaranes"),("/e/%d/documentos?tipo=G"|format(e.id),"gasto","Gastos"),
+("/e/%d/pendientes"|format(e.id),"cobros","Cobros pendientes"),("/e/%d/libros"|format(e.id),"libros","Libros IVA"),
+("/e/%d/clientes"|format(e.id),"cliente","Clientes"),("/e/%d/proveedores"|format(e.id),"proveedor","Proveedores"),("/e/%d/nuevo/F"|format(e.id),"nuevo","Nueva factura"),
+("/e/%d/verificacion"|format(e.id),"verificar","Verificación"),("/e/%d/empresa"|format(e.id),"empresa","Empresa"),("/","listados","Cambiar de empresa"),("/acerca","contfactu","Acerca de")] %}<a href="{{href}}" class="{{'activo' if (href != '/' and A.startswith(href)) or (A ~ '&').startswith(href ~ '&') else ''}}">{{ico(icono,18)}}{{txt}}</a>{% endfor %}</nav>{% else %}<nav><a href="/">{{ico('listados',18)}}Empresas</a><a href="/empresas/nueva">{{ico('empresa',18)}}Nueva empresa</a><a href="/asistente">{{ico('importar',18)}}Importar de FactuCont</a><a href="/acerca">{{ico('contfactu',18)}}Acerca de</a></nav>{% endif %}</header>
+<main>{% block c %}{% endblock %}</main>
+<footer style="text-align:center;color:#667085;font-size:.8rem;padding:.5rem 0 1rem"><a href="/acerca" style="color:#667085">ContFactu {{VERSION}}</a></footer>
+<script>
+/* Dentro de la ventana propia (pywebview) no hay pestañas ni descargas del navegador:
+   los PDF se abren con el visor predeterminado de Windows y los xlsx/CSV se guardan con el diálogo nativo. */
+(function(){
+  function esArchivo(u){return /\/pdf(\?|$)|\/recibos(\?|$)|\.xlsx(\?|$)|\.csv(\?|$)/.test(u.pathname)}
+  document.addEventListener('click',function(ev){
+    var a=ev.target.closest&&ev.target.closest('a[href]'); if(!a||!window.pywebview||!window.pywebview.api) return;
+    var u=new URL(a.href,location.href); if(u.origin!==location.origin) {ev.preventDefault();window.pywebview.api.abrir_externo(u.href);return;}
+    if(esArchivo(u)){ev.preventDefault();
+      var p=/\.(xlsx|csv)(\?|$)/.test(u.pathname)?window.pywebview.api.guardar(u.pathname+u.search):window.pywebview.api.abrir(u.pathname+u.search);
+      p.then(function(r){if(r&&r.mensaje)alert(r.mensaje)});}
+    else if(a.target==='_blank'){ev.preventDefault();location.href=u.href;}
+  },true);
+})();
+</script></body></html>

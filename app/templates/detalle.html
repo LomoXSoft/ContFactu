@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block c %}
+{% set msgs = {'guardado':'Documento guardado. Totales recalculados.','cobro':'Cobro registrado.','anulado':'Cobro anulado.','rectificativa':'Factura rectificativa creada.','facturado':'Factura creada; los documentos de origen quedan marcados como facturados.'} %}
+{% if ok in msgs %}<div class="card okmsg">✔ {{msgs[ok]}}</div>{% endif %}
+<div class="card" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+<div><h2 style="margin:.2rem 0">{{ico("rectificar" if d.rect_original_id else ICONO_TIPO.get(d.tipo,"factura"),26)}}{{titulo|capitalize}} {{d|num}}</h2><div class="muted">Fecha {{d.fecha|fecha}}
+{% if d.origen=='nuevo' %} · creado en ContFactu{% elif d.origen=='editado' %} · importado y modificado en ContFactu{% else %} · importado de FactuCont{% endif %}</div>
+<div style="margin-top:.3rem">{% if d.tipo in 'FAM' and not d.facturado %}<span class="et {{estado}}">{{estado}}</span>{% endif %}
+{% if d.facturado %}<span class="et facturado">facturado</span>{% endif %}{% if d.rect_original_id %} <span class="et rect">rectificativa {{'por sustitución' if d.rect_tipo=='S' else 'por diferencias'}}</span>{% endif %}</div></div>
+<div><strong>{{d.nombre_f or ''}}</strong><br>{{d.direccion_f or ''}}<br>{{d.ciudad_f or ''}}<br>{{d.nif or ''}}</div>
+<div class="acciones" style="align-items:flex-start;max-width:380px"><a class="btn" href="/d/{{d.id}}/pdf" target="_blank">{{ico('imprimir')}}Ver / imprimir PDF</a>
+<a class="btn sec" href="/d/{{d.id}}/editar">{{ico('modificar')}}Modificar</a>
+{% if d.tipo=='F' %}<a class="btn sec" href="/d/{{d.id}}/rectificar">{{ico('rectificar')}}Rectificar…</a>{% endif %}
+{% if d.tipo in 'AP' and not d.facturado %}<a class="btn sec" href="/e/{{e.id}}/facturar?tipo={{d.tipo}}&cliente={{d.nombre_f|urlencode}}">{{ico('facturar')}}Pasar a factura…</a>{% endif %}
+{% if recibos and d.tipo in 'FA' %}<a class="btn sec" href="/d/{{d.id}}/recibos" target="_blank">{{ico('recibo')}}Recibos PDF</a>{% endif %}
+<a class="btn sec" style="color:#b42318;border-color:#b42318" href="/d/{{d.id}}/borrar">{{ico('borrar')}}Borrar…</a></div></div>
+{% if ref_rect %}<div class="card aviso">{% for r in ref_rect %}{{r}}<br>{% endfor %}{% if rel.original %}<a href="/d/{{rel.original.id}}">Ver factura original</a>{% endif %}</div>{% endif %}
+{% for r in rel.rectificativas %}<div class="card aviso">Esta factura está rectificada por la <a href="/d/{{r.id}}">{{r.serie}}{{r.numero}}</a> ({{r.fecha|fecha}}, {{r.total|eur}} €).</div>{% endfor %}
+{% if rel.factura %}<div class="card aviso">Facturado en la factura <a href="/d/{{rel.factura.id}}">{{rel.factura.serie|trim}}{{rel.factura.numero}}</a> del {{rel.factura.fecha|fecha}}.</div>{% endif %}
+{% if rel.origenes %}<div class="card muted">Generada a partir de: {% for o in rel.origenes %}<a href="/d/{{o.id}}">{{TIPOS[o.tipo]}} {{o.serie|trim}}{{o.numero}}</a>{{', ' if not loop.last}}{% endfor %}</div>{% endif %}
+{% for a in aviso %}<div class="card aviso">⚠ Descuadre detectado al importar: {{a}}</div>{% endfor %}
+<div class="card"><table><tr><th>Código</th><th>Concepto</th><th class="n">Cant.</th><th class="n">Precio</th><th class="n">Dto.</th><th class="n">IVA</th><th class="n">Importe</th></tr>
+{% for l in lineas %}<tr><td>{{l.codigo or ''}}</td><td>{{l.concepto or ''}}</td>{% if l.comentario %}<td colspan=5></td>{% else %}
+<td class="n">{{l.cantidad}}</td><td class="n">{{l.precio|eur}}</td><td class="n">{{l.descuento if l.descuento not in (None,'','0') else ''}}</td><td class="n">{{l.iva}}%</td><td class="n">{{l.importe|eur}}</td>{% endif %}</tr>{% endfor %}
+</table></div>
+<div class="card"><table style="max-width:560px;margin-left:auto"><tr><th class="n">Base</th><th class="n">IVA %</th><th class="n">Cuota IVA</th><th class="n">RE %</th><th class="n">Cuota RE</th></tr>
+{% for x in tot.desglose %}<tr><td class="n">{{x.base|eur}}</td><td class="n">{{x.iva}}</td><td class="n">{{x.cuota_iva|eur}}</td><td class="n">{{x.re}}</td><td class="n">{{x.cuota_re|eur}}</td></tr>{% endfor %}
+{% if tot.retencion %}<tr><td colspan=4 class="n">Retención</td><td class="n">-{{tot.retencion|eur}}</td></tr>{% endif %}
+<tr><th colspan=4 class="n">TOTAL</th><th class="n">{{tot.total|eur}} €</th></tr></table></div>
+{% if d.tipo in "FAM" %}<div class="card" id="cobros"><h3>Cobros <span class="muted" style="font-size:.9rem">· pendiente {{d.pendiente|eur}} € de {{d.total|eur}} €</span></h3>
+<table><tr><th>Vencimiento</th><th>Concepto</th><th class="n">Importe</th><th class="n">Cobrado</th><th>Estado</th><th></th></tr>
+{% for p in plazos if p.tipo != '1' %}<tr><td>{{p.fecha|fecha}}</td><td>{{p.concepto or ''}}</td><td class="n">{{p.importe|eur}}</td>
+<td class="n">{{(p.importe if p.tipo=='A' else p.cobrado)|eur}}</td>
+<td>{% if p.tipo=='A' or p.cobrado|float == p.importe|float %}<span class="et cobrado">cobrado</span>{% elif p.cobrado|float != 0 %}<span class="et parcial">parcial</span>{% else %}<span class="et pendiente">pendiente</span>{% endif %}</td>
+<td><a href="/d/{{d.id}}/recibos?plazo={{p.id}}" target="_blank">Recibo</a></td></tr>{% endfor %}</table>
+{% if cobros %}<h3 style="margin-top:1rem">Cobros registrados</h3><table><tr><th>Fecha</th><th class="n">Importe</th><th>Forma</th><th>Nota</th><th></th></tr>
+{% for c in cobros %}<tr><td>{{c.fecha|fecha}}</td><td class="n">{{c.importe|eur}}</td><td>{{c.forma or ''}}</td><td>{{c.nota or ''}}</td>
+<td><form method="post" action="/cobro/{{c.id}}/anular" onsubmit="return confirm('¿Anular este cobro?')"><button class="btn sec peq">{{ico('deshacer')}}Anular</button></form></td></tr>{% endfor %}</table>{% endif %}
+{% if d.pendiente|float != 0 and not d.facturado %}<form method="post" action="/d/{{d.id}}/cobro" class="grid" style="margin-top:1rem;align-items:end">
+<label>Fecha del cobro<input type="date" name="fecha" value="{{hoy}}" required></label><label>Importe (€)<input name="importe" value="{{d.pendiente|eur}}" required></label>
+<label>Forma<select name="forma"><option>Transferencia</option><option>Efectivo</option><option>Recibo domiciliado</option><option>Tarjeta</option><option>Cheque/pagaré</option><option>Otro</option></select></label>
+<label>Nota<input name="nota"></label><div><button class="btn">{{ico('cobros')}}Registrar cobro</button></div></form>{% endif %}</div>{% endif %}
+{% endblock %}

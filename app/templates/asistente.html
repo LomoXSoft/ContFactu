@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block c %}<div class="card" style="max-width:820px;margin:auto"><h2>{{ico('importar',24)}}Importar datos de FactuCont 5</h2>
+{% if resultado %}<div class="okmsg">✔ Importación terminada.</div>
+<table style="margin:.8rem 0"><tr><th>Empresa</th><th>Nombre</th><th class="n">Documentos</th><th class="n">Descuadres</th><th class="n">Conflictos</th></tr>
+{% for c, n, s in resultado %}{% if s.omitida %}<tr><td>{{c}}</td><td colspan=4 class="error" style="padding:.4rem">{{s.omitida}}</td></tr>{% else %}<tr><td>{{c}}</td><td>{{n}}</td><td class="n">{{s.documentos}}</td><td class="n">{{s.verificacion.descuadran}}</td><td class="n">{{s.conflictos}}</td></tr>{% endif %}{% endfor %}</table>
+<p><a class="btn" href="/">Empezar a trabajar →</a></p>
+{% else %}
+<p>Este asistente copia sus datos de <b>FactuCont 5</b> (empresas, clientes, proveedores, facturas, presupuestos, albaranes, gastos,
+vencimientos y diseños de impresión). <b>FactuCont no se modifica</b>: solo se leen sus archivos.</p>
+<ol><li>En el equipo donde tenga los datos <b>buenos y al día</b> de FactuCont (por ejemplo, un equipo antiguo o una máquina virtual), cierre FactuCont
+y copie la carpeta <code>FC5</code> (o comprímala en un <b>.zip</b> o <b>.rar</b>).</li>
+<li>Elija abajo ese archivo, o escriba la ruta de la carpeta o del archivo copiado.</li><li>Pulse «Importar».</li></ol>
+<div class="aviso">ContFactu no elige ninguna carpeta por su cuenta: si en este ordenador hay una instalación antigua de FactuCont,
+<b>no la use</b> si sus datos no están al día.</div>
+{% if hay %}<div class="aviso">Ya hay datos en ContFactu. Volver a importar <b>sustituye lo importado que no haya tocado</b>; lo creado o
+modificado en ContFactu se conserva (si un número coincide, se queda el de ContFactu y se avisa como «conflicto»).</div>{% endif %}
+<form method="post" action="/importar" enctype="multipart/form-data" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Importando… (puede tardar un minuto)'">
+<label style="margin:1rem 0">Archivo .zip o .rar con la carpeta FC5<input type="file" name="archivo" accept=".zip,.rar"></label>
+<label style="margin:1rem 0">…o ruta de la carpeta FC5 (o del .zip/.rar)<input name="ruta" value="{{ruta}}" placeholder="p. ej. D:\Copia\FC5"></label>
+<p class="acciones"><button class="btn">{{ico('importar')}}Importar</button><a class="btn sec" href="{{'/' if hay else '/bienvenida'}}">{{ico('cancelar')}}Cancelar</a></p></form>{% endif %}
+<p class="muted" style="margin-top:1.2rem">Sus datos se guardan en <code>{{datos}}</code>. Haga copia de ese archivo de vez en cuando.</p></div>{% endblock %}

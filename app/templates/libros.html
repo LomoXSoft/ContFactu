@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% block c %}<div class="card"><form class="acciones"><strong>{{ico("libros",24)}}Libros registro de IVA</strong>
+<select name="anio" onchange="this.form.submit()" style="width:auto">{% for a in anios %}<option {{'selected' if a==anio}}>{{a}}</option>{% endfor %}</select>
+<select name="t" onchange="this.form.submit()" style="width:auto"><option value="">Año completo</option>{% for q in '1234' %}<option value="{{q}}" {{'selected' if q==t}}>{{q}}º trimestre</option>{% endfor %}</select>
+<a class="btn" href="/e/{{e.id}}/libros.xlsx?anio={{anio}}&t={{t}}">{{ico('excel')}}Descargar Excel (.xlsx)</a>
+<a class="btn sec" href="/e/{{e.id}}/libro_emitidas.csv?anio={{anio}}&t={{t}}">{{ico('descargar')}}CSV emitidas</a>
+<a class="btn sec" href="/e/{{e.id}}/libro_recibidas.csv?anio={{anio}}&t={{t}}">{{ico('descargar')}}CSV recibidas</a></form></div>
+{% if m303 %}<div class="card"><h3>Resumen aproximado modelo 303 · {{anio}} {{t}}T</h3>
+<div class="aviso" style="margin-bottom:.6rem">Orientativo: calculado solo con lo registrado en ContFactu (régimen general). La gestoría debe revisarlo antes de presentar.</div>
+<table style="max-width:760px"><tr><th>Casillas</th><th>Concepto</th><th class="n">Base</th><th class="n">Cuota</th></tr>
+{% for x in m303.devengado %}<tr><td>{{x.casillas|join('/')}}</td><td>IVA devengado al {{x.iva|pct}} %</td><td class="n">{{x.base|eur}}</td><td class="n">{{x.cuota|eur}}</td></tr>{% endfor %}
+{% for x in m303.otros %}<tr><td>—</td><td>IVA devengado a otro tipo ({{x.iva|pct}} %)</td><td class="n">{{x.base|eur}}</td><td class="n">{{x.cuota|eur}}</td></tr>{% endfor %}
+{% for x in m303.re %}<tr><td>16–24</td><td>Recargo de equivalencia {{x.re|pct}} %</td><td class="n">{{x.base|eur}}</td><td class="n">{{x.cuota|eur}}</td></tr>{% endfor %}
+{% if m303.sin_iva %}<tr><td>—</td><td class="muted">Operaciones sin IVA / exentas (no suman cuota)</td><td class="n">{{m303.sin_iva|eur}}</td><td></td></tr>{% endif %}
+<tr><th>27</th><th>Total cuota devengada</th><th></th><th class="n">{{m303.c27|eur}}</th></tr>
+<tr><td>28/29</td><td>IVA deducible operaciones interiores corrientes ({{m303.n_recibidas}} facturas recibidas)</td><td class="n">{{m303.c28|eur}}</td><td class="n">{{m303.c29|eur}}</td></tr>
+<tr><th>45</th><th>Total a deducir</th><th></th><th class="n">{{m303.c45|eur}}</th></tr>
+<tr><th>46</th><th>Resultado régimen general (27 − 45)</th><th></th><th class="n">{{m303.c46|eur}}</th></tr>
+<tr><td></td><td class="muted">Retenciones que le han practicado sus clientes (mod. 130)</td><td></td><td class="n">{{m303.ret_emitidas|eur}}</td></tr>
+<tr><td></td><td class="muted">Retenciones en facturas recibidas (mod. 111/115)</td><td></td><td class="n">{{m303.ret_recibidas|eur}}</td></tr></table></div>
+{% else %}<div class="card muted">Elija un trimestre para ver el resumen aproximado del modelo 303.</div>{% endif %}
+{% for titulo, filas, r in [('Facturas emitidas', emitidas, r_em), ('Facturas recibidas (gastos)', recibidas, r_rc)] %}
+<div class="card"><h3>{{titulo}} <span class="muted" style="font-size:.9rem">· {{r.facturas}} facturas</span></h3>
+<table><tr><th>IVA %</th><th>RE %</th><th class="n">Base</th><th class="n">Cuota IVA</th><th class="n">Cuota RE</th></tr>
+{% for a in r.por_tipo %}<tr><td>{{a.iva|pct}}</td><td>{{a.re|pct}}</td><td class="n">{{a.base|eur}}</td><td class="n">{{a.cuota_iva|eur}}</td><td class="n">{{a.cuota_re|eur}}</td></tr>{% endfor %}
+<tr><th colspan=2>Total · retenciones {{r.retencion|eur}} · total facturas {{r.total|eur}} €</th><th class="n">{{r.base|eur}}</th><th class="n">{{r.cuota_iva|eur}}</th><th class="n">{{r.cuota_re|eur}}</th></tr></table>
+<details style="margin-top:.6rem"><summary>Ver detalle ({{filas|length}} filas)</summary><table style="font-size:.88rem">
+<tr><th>Fecha</th><th>Número</th><th>Tipo</th><th>NIF</th><th>Nombre</th><th class="n">Base</th><th class="n">IVA%</th><th class="n">Cuota</th><th class="n">RE</th><th class="n">Ret.</th><th class="n">Total</th></tr>
+{% for f in filas %}<tr><td>{{f.fecha|fecha}}</td><td><a href="/d/{{f.documento_id}}">{{f.numero}}</a>{% if f.num_proveedor %} <span class="muted">({{f.num_proveedor}})</span>{% endif %}</td>
+<td>{{f.tipo_factura}}{% if f.rectifica %} → {{f.rectifica}}{% endif %}</td><td>{{f.nif}}</td><td>{{f.nombre}}</td><td class="n">{{f.base|eur}}</td><td class="n">{{f.iva|pct}}</td>
+<td class="n">{{f.cuota_iva|eur}}</td><td class="n">{{f.cuota_re|eur if f.cuota_re else ''}}</td><td class="n">{{f.retencion|eur if f.retencion else ''}}</td><td class="n">{{f.total|eur if f.primera else ''}}</td></tr>{% endfor %}
+</table></details></div>{% endfor %}{% endblock %}

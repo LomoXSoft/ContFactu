@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block c %}<div class="card"><h2>{{ico('empresa',24)}}Elija empresa</h2>
+<table><tr><th>Código</th><th>Empresa</th><th>NIF</th><th class="n">Facturas</th><th>Último movimiento</th><th>Origen</th></tr>
+{% for x in empresas %}<tr><td>{{x.codigo}}</td><td><a href="/e/{{x.id}}/documentos?tipo=F">{{x.nombre}}</a></td><td>{{x.nif or ''}}</td>
+<td class="n">{{x.n_facturas}}</td><td>{{x.ultima|fecha}}</td><td class="muted">{{'creada en ContFactu' if x.origen == 'nuevo' else 'importada de FactuCont'}}</td></tr>{% endfor %}
+</table><p class="acciones" style="margin-top:.8rem"><a class="btn" href="/empresas/nueva">{{ico('empresa')}}Nueva empresa desde cero…</a>
+<a class="btn sec" href="/asistente">{{ico('importar')}}Importar de FactuCont…</a></p></div>{% endblock %}
