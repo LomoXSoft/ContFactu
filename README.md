@@ -1,6 +1,7 @@
 # ContFactu
 
-Programa de facturación para Windows 10/11 (también funciona en Linux y macOS) pensado para pequeñas empresas y autónomos.
+Programa de facturación libre para Windows 10/11, pensado para pequeñas empresas y autónomos de España.
+Desde el código fuente también puede ejecutarse en Linux, aunque eso no se prueba con regularidad.
 Sirve como sustituto de **FactuCont 5**: puede **leer sus datos para importarlos** o empezar desde cero con una empresa nueva.
 
 > ContFactu es un proyecto independiente. **No está afiliado a Binarema ni respaldado por ella.** «FactuCont» se nombra
@@ -12,7 +13,12 @@ en `%APPDATA%\ContFactu` (base de datos SQLite). No se envía nada a Internet.
 
 Estado: **versión temprana (0.0.x)**. Use copias de seguridad.
 
-![Primera pantalla](capturas/28_v003_bienvenida.png)
+![Primera pantalla de ContFactu](capturas/28_v003_bienvenida.png)
+
+**Contenido:** [Funciones](#funciones) · [Requisitos](#requisitos) · [Instalar y actualizar](#instalar-y-actualizar) ·
+[Importar de FactuCont 5](#importar-de-factucont-5) · [Datos y copias de seguridad](#datos-y-copias-de-seguridad) ·
+[Desarrollo](#ejecutar-desde-el-código-desarrollo) · [Pruebas](#pruebas) · [Construir el instalador](#construir-el-instalador-windows) ·
+[Limitaciones y planes](#limitaciones-y-planes) · [Licencia](#licencia)
 
 ## Funciones
 
@@ -37,12 +43,45 @@ Estado: **versión temprana (0.0.x)**. Use copias de seguridad.
 
 Capturas (con datos inventados) en [`capturas/`](capturas/).
 
-## Descargar
+## Requisitos
 
-El instalador `ContFactu-Setup-<versión>.exe` está en [Releases](https://github.com/LomoXSoft/ContFactu/releases).
-- Se instala en `C:\Program Files\ContFactu` y pide permiso de administrador.
-- Los datos van en `%APPDATA%\ContFactu`, y desinstalar el programa no los borra.
-- El instalador no está firmado digitalmente, así que Windows SmartScreen puede avisar.
+- Windows 10 o Windows 11 de **64 bits**.
+- **Microsoft Edge WebView2 Runtime**, que viene con Windows 11 y con Windows 10 actualizado. Si falta, ContFactu se abre en el navegador.
+  También se puede instalar desde [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
+- Permiso de administrador para instalar. Para usar el programa no hace falta.
+
+## Instalar y actualizar
+
+1. Descargue `ContFactu-Setup-<versión>.exe` de la [última versión publicada](https://github.com/LomoXSoft/ContFactu/releases/latest).
+   Si quiere, compruebe su SHA-256, que figura en las notas de la versión:
+   `Get-FileHash .\ContFactu-Setup-0.0.3.exe` en PowerShell.
+2. Ejecútelo. Se instala en `C:\Program Files\ContFactu` y crea accesos directos en el menú Inicio y, si lo elige, en el escritorio.
+   El instalador no está firmado digitalmente, así que Windows SmartScreen puede avisar: «Más información» → «Ejecutar de todas formas».
+3. **Actualizar**: ejecute el instalador de la versión nueva encima de la anterior.
+   - Si ContFactu está abierto, pide cerrarlo.
+   - Los datos no se tocan.
+   - Las versiones de prueba 0.0.1 y 0.0.2, que se instalaban en la carpeta del usuario, se desinstalan solas.
+4. **Desinstalar**: desde *Configuración → Aplicaciones*. Los datos de `%APPDATA%\ContFactu` se conservan.
+
+## Importar de FactuCont 5
+
+1. En el equipo donde están los datos al día de FactuCont 5, cierre FactuCont y copie la carpeta `FC5`.
+   Normalmente está en `C:\Binarema\FC5` y tiene subcarpetas `00001`, `00002`… (una por empresa).
+   También vale comprimida en un `.zip` o un `.rar`.
+2. En ContFactu, elija «Importar de FactuCont». Aparece en la primera pantalla y también en *Cambiar de empresa → Importar de FactuCont*.
+   Después indique la carpeta o el archivo.
+3. Pulse «Importar». Se importan todas las empresas con datos de la carpeta `FC5`.
+   Si una tiene el mismo código que una empresa creada en ContFactu, se omite y se avisa.
+   - FactuCont **no se modifica**: solo se leen sus archivos.
+   - La importación se puede repetir: vuelve a cargar lo importado y respeta los documentos creados en ContFactu.
+   - En la pantalla *Verificación* se comparan los totales de cada documento con sus líneas.
+
+## Datos y copias de seguridad
+
+- Todo se guarda en `%APPDATA%\ContFactu`: la base de datos `contfactu.db`, los logotipos y el registro `contfactu.log`.
+  ContFactu nunca escribe en la carpeta del programa ni envía datos por Internet.
+- **Copia de seguridad**: con ContFactu cerrado, copie la carpeta `%APPDATA%\ContFactu`
+  (o al menos `contfactu.db`) a un disco externo o a la nube.
 
 ## Ejecutar desde el código (desarrollo)
 
@@ -66,7 +105,8 @@ Variables de entorno útiles:
 | `CONTFACTU_NO_BROWSER=1` | Arranca solo el servidor. |
 
 Datos de demostración (empresa ficticia «Ferretería Ejemplo, S.L.»): `python -m herramientas.demo datos_demo/demo.db`
-y después `CONTFACTU_DB=datos_demo/demo.db python -m app`.
+y después `CONTFACTU_DB=datos_demo/demo.db python -m app`
+(en PowerShell: `$env:CONTFACTU_DB="datos_demo\demo.db"; python -m app`).
 
 ## Pruebas
 
@@ -118,11 +158,19 @@ Resultado: `instalador\Output\ContFactu-Setup-<versión>.exe`. La versión se de
 | `herramientas/` | Datos de demostración y pantalla de carga. |
 | `tests/` | Pruebas (pytest). |
 
-## Limitaciones
+## Limitaciones y planes
 
-- Todavía no cumple **VERI\*FACTU** (RD 1007/2023): no hay registros encadenados, QR ni envío a la AEAT. El esquema ya tiene columnas `vf_*` preparadas.
+- **VERI\*FACTU** (RD 1007/2023, Orden HAC/1177/2024) está **previsto, pero no implementado**.
+  - Aún no se generan registros de facturación con huella encadenada, ni el código QR, ni se envía nada a la AEAT.
+  - El esquema de la base de datos ya tiene columnas `vf_*` preparadas.
+  - Compruebe los plazos que le aplican antes de usar ContFactu como sistema de facturación definitivo.
 - El resumen del modelo 303 es solo orientativo.
 - Hasta 3 tipos de IVA por factura (como FactuCont).
+- No hay factura electrónica (Facturae / B2B), modelos oficiales de la AEAT ni envío de facturas por correo.
+- Versión temprana: haga copias de seguridad con frecuencia.
+
+Errores y sugerencias: [Issues](https://github.com/LomoXSoft/ContFactu/issues). Para contribuir, vea [CONTRIBUTING.md](CONTRIBUTING.md).
+El historial de cambios está en [CHANGELOG.md](CHANGELOG.md).
 
 ## Licencia
 
@@ -134,5 +182,5 @@ posterior (GPL-3.0-or-later). Se distribuye con la esperanza de que sea útil, p
 la garantía implícita de COMERCIABILIDAD o IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Consulte el archivo [LICENSE](LICENSE).
 
 Componentes de terceros que se usan al construir el instalador:
-- Python, FastAPI, Uvicorn, Jinja2, ReportLab, dbfread, openpyxl, pywebview y Pillow, cada uno con su licencia.
+- Python, FastAPI, Uvicorn, Jinja2, ReportLab, dbfread, openpyxl, pywebview y Pillow (dependencia de ReportLab), cada uno con su licencia.
 - 7-Zip © Igor Pavlov (GNU LGPL + restricción unRAR), que se distribuye con su `License.txt`.

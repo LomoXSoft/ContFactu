@@ -3,6 +3,9 @@
 Formato: cada versión con lo nuevo, lo cambiado y lo corregido. La versión sale de un único sitio:
 `app/__init__.py` (`__version__`). Autor: **LomoXSoft**.
 
+La 0.0.3 es la primera versión publicada en GitHub. La 0.0.1 y la 0.0.2 fueron versiones de prueba sin publicar; su
+historial de git no forma parte de este repositorio.
+
 ## [0.0.3] — 2026-11-02
 
 ### Nuevo
@@ -73,7 +76,6 @@ Formato: cada versión con lo nuevo, lo cambiado y lo corregido. La versión sal
   - cierra ContFactu si está abierto;
   - sustituye las bibliotecas antiguas;
   - **conserva los datos** de `%APPDATA%\ContFactu`.
-- Se ha iniciado el control de versiones con git, con las etiquetas `v0.0.1` y `v0.0.2`.
 
 ## [0.0.1] — primera versión instalada
 
