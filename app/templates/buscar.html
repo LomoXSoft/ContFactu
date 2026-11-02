@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block t %}Buscar{% endblock %}{% block c %}
+<div class="card"><h2>{{ico('buscar',26)}}Buscar en {{e.nombre}}</h2>
+<form method="get" action="/e/{{e.id}}/buscar" class="acciones"><label style="flex:1;min-width:320px">Nombre, NIF, nº de documento, importe o producto
+<input type="search" name="q" value="{{q}}" id="q2"></label><button class="btn" style="margin-top:1rem">Buscar</button></form>
+{% if r.q and r.total == 0 %}<p class="muted">No se ha encontrado nada con «{{r.q}}».</p>{% elif not r.q %}<p class="muted">Escriba al menos 2 letras. Con las flechas ↑ ↓ se recorren los resultados y con Intro se abre el elegido.</p>{% endif %}</div>
+{% if r.clientes %}<div class="card"><h3>{{ico('cliente',22)}}Clientes ({{r.clientes|length}})</h3><table>
+{% for x in r.clientes %}<tr><td><a class="res" href="/e/{{e.id}}/clientes/{{x.id}}">{{x.nombre or x.nombre_f}}</a></td><td>{{x.nif or ''}}</td><td>{{x.ciudad or ''}}</td><td class="muted">{{x.codigo}}</td>
+<td><a class="btn sec peq" href="/e/{{e.id}}/nuevo/F?cliente={{x.codigo|urlencode}}">Nueva factura</a></td></tr>{% endfor %}</table></div>{% endif %}
+{% if r.proveedores %}<div class="card"><h3>{{ico('proveedor',22)}}Proveedores ({{r.proveedores|length}})</h3><table>
+{% for x in r.proveedores %}<tr><td><a class="res" href="/e/{{e.id}}/proveedores/{{x.id}}">{{x.nombre or x.nombre_f}}</a></td><td>{{x.nif or ''}}</td><td>{{x.ciudad or ''}}</td><td class="muted">{{x.codigo}}</td></tr>{% endfor %}</table></div>{% endif %}
+{% if r.documentos %}<div class="card"><h3>{{ico('factura',22)}}Documentos ({{r.documentos|length}})</h3><table>
+<tr><th>Tipo</th><th>Número</th><th>Fecha</th><th>Cliente / proveedor</th><th>NIF</th><th class="n">Total</th><th></th></tr>
+{% for x in r.documentos %}<tr><td>{{TIPOS[x.tipo]}}</td><td><a class="res" href="/d/{{x.id}}">{{x.visible}}</a></td><td>{{x.fecha|fecha}}</td><td>{{x.nombre_f or ''}}</td><td>{{x.nif or ''}}</td>
+<td class="n">{{x.total|eur}} €</td><td>{% if x.tipo == 'F' %}<span class="et {{x.estado}}">{{x.estado}}</span>{% endif %}</td></tr>{% endfor %}</table></div>{% endif %}
+{% if r.productos %}<div class="card"><h3>{{ico('articulo',22)}}Productos y conceptos ({{r.productos|length}})</h3><table>
+<tr><th>Concepto</th><th class="n">Último precio</th><th class="n">Documentos</th><th>Último uso</th></tr>
+{% for x in r.productos %}<tr><td><a class="res" href="/e/{{e.id}}/buscar?q={{x.concepto|urlencode}}">{{x.concepto}}</a></td><td class="n">{{x.precio|eur if x.precio else ''}}</td><td class="n">{{x.usos}}</td><td>{{x.ultima|fecha}}</td></tr>{% endfor %}</table></div>{% endif %}
+<script>
+(function(){var rs=[].slice.call(document.querySelectorAll('a.res')),i=-1;
+function marcar(n){if(!rs.length)return;i=(n+rs.length)%rs.length;rs[i].focus();}
+document.addEventListener('keydown',function(ev){var enCampo=ev.target.tagName==='INPUT';
+  if(ev.key==='ArrowDown'){ev.preventDefault();marcar(i+1);} else if(ev.key==='ArrowUp'&&!enCampo){ev.preventDefault();marcar(i-1);}});
+})();
+</script>{% endblock %}

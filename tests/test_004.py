@@ -228,7 +228,7 @@ def test_copia_un_clic(con, entorno, tmp_path):
     with zipfile.ZipFile(ruta) as z:
         assert set(z.namelist()) == {"contfactu.db", "logos/empresa_1.png", "contfactu-copia.json"}
         man = json.loads(z.read("contfactu-copia.json"))
-        assert man["empresas"] == 1 and man["documentos"] == 1 and man["version_programa"] == "0.0.4"
+        assert man["empresas"] == 1 and man["documentos"] == 1 and man["version_programa"] == importlib.import_module("app").__version__
     assert db.ajuste(con, "copia_carpeta") == str(destino)
     assert copias.dias_desde_ultima(con) == 0 and not copias.necesita_aviso(con)
     # una segunda copia en el mismo segundo no pisa la primera
@@ -352,7 +352,7 @@ def test_migracion_desde_version_antigua(entorno, esquema):
     assert app.db.version_datos(ruta) == (None, None)
     c = app.db.connect()
     # 1) copia automática ANTES de migrar, con la base tal cual estaba
-    autos = list((entorno / "copias-automaticas").glob("ContFactu-antes-de-0.0.4-*.zip"))
+    autos = list((entorno / "copias-automaticas").glob(f"ContFactu-antes-de-{importlib.import_module('app').__version__}-*.zip"))
     assert len(autos) == 1
     with zipfile.ZipFile(autos[0]) as z:
         tmp = entorno / "x.db"; tmp.write_bytes(z.read("contfactu.db"))
@@ -361,7 +361,7 @@ def test_migracion_desde_version_antigua(entorno, esquema):
     v.close()
     assert "re_tasas" not in cols                       # es la base anterior, sin migrar
     # 2) versión y esquema guardados; columnas y tablas nuevas presentes
-    assert app.db.version_datos(ruta) == ("0.0.4", app.db.ESQUEMA)
+    assert app.db.version_datos(ruta) == (importlib.import_module("app").__version__, app.db.ESQUEMA)
     assert {"desglose_iva"} <= {r[1] for r in c.execute("PRAGMA table_info(documentos)")}
     assert {"re_tasas", "ivas", "logo"} <= {r[1] for r in c.execute("PRAGMA table_info(empresas)")}
     for t in ("ajustes", "correo_config", "envios"):
@@ -380,16 +380,17 @@ def test_migracion_desde_version_antigua(entorno, esquema):
     assert len(list((entorno / "copias-automaticas").glob("*.zip"))) == 1
 
 def test_actualizacion_futura_hace_copia(entorno, monkeypatch):
-    """Simula la 0.0.5: la base dejada por la 0.0.4 se copia antes de migrar y queda anotada la versión anterior."""
+    """Simula una versión futura: la base dejada por la actual se copia antes de migrar y queda anotada la versión anterior."""
     import app, app.db
+    actual = app.__version__
     c = app.db.connect()
     with c:
         c.execute("INSERT INTO empresas(id,codigo,nombre,nif) VALUES(1,'00001','X','B00000000')")
-    monkeypatch.setattr(app, "__version__", "0.0.5")
+    monkeypatch.setattr(app, "__version__", "9.9.9")
     importlib.reload(app.db)
     c = app.db.connect()
-    assert list((entorno / "copias-automaticas").glob("ContFactu-antes-de-0.0.5-*.zip"))
-    assert app.db.ajuste(c, "version") == "0.0.5" and app.db.ajuste(c, "version_anterior") == "0.0.4"
+    assert list((entorno / "copias-automaticas").glob("ContFactu-antes-de-9.9.9-*.zip"))
+    assert app.db.ajuste(c, "version") == "9.9.9" and app.db.ajuste(c, "version_anterior") == actual
 
 def test_instalacion_nueva_no_hace_copia(entorno):
     import app.db

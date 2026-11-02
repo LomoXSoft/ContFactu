@@ -4,7 +4,8 @@ rem  Construye ContFactu.exe y el instalador en un PC con Windows 10/11.
 rem  Requisitos (una sola vez):
 rem    1) Python 3.12 o 3.13 de 64 bits (python.org), marcando "Add python.exe to PATH".
 rem    2) Inno Setup 6 (jrsoftware.org) - solo para el paso del instalador.
-rem    3) Conexion a Internet la primera vez (descarga 7-Zip 25.01 de www.7-zip.org).
+rem    3) Conexion a Internet la primera vez (descarga 7-Zip 25.01 de www.7-zip.org). Despues ya no hace
+rem       falta: se reutiliza la copia comprobada (ver instalador\obtener_7zip.ps1).
 rem  Uso: doble clic en este archivo, o desde la carpeta del proyecto:  instalador\construir.bat
 rem ============================================================================
 setlocal
@@ -23,6 +24,7 @@ python -m pytest -q tests || goto :error
 
 echo Comprobando 7-Zip (para abrir copias .rar)...
 rem 7-Zip no se guarda en el repositorio (LGPL + restriccion unRAR): se descarga de 7-zip.org y se comprueba su SHA-256.
+rem Si falta, se toma de una copia local ya comprobada (o de 7-Zip 25.01 instalado) antes de intentar descargarlo.
 if not exist instalador\7zip\7z.exe (
   if not exist instalador\7zip mkdir instalador\7zip
   powershell -NoProfile -ExecutionPolicy Bypass -File instalador\obtener_7zip.ps1 || goto :error

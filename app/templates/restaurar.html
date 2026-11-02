@@ -4,7 +4,7 @@
 <table style="max-width:760px">
 <tr><th>Archivo</th><td>{{mostrado}}</td></tr>
 <tr><th>Fecha de la copia</th><td>{% if info.fecha %}{{info.fecha[:10]|fecha}} a las {{info.fecha[11:16]}}{% else %}desconocida{% endif %}</td></tr>
-<tr><th>Versión de ContFactu</th><td>{{info.version}}</td></tr>
+<tr><th>Versión de ContFactu</th><td>{{info.version}}{% if info.version != VERSION %} <span class="muted">— al restaurarla se pondrá al día para la {{VERSION}} automáticamente</span>{% endif %}</td></tr>
 <tr><th>Contenido</th><td>{{info.empresas}} empresa(s): {{info.nombres|join(', ')}}<br>{{info.documentos}} documentos · {{info.clientes}} clientes ·
 {{info.proveedores}} proveedores · {{info.logos}} logotipo(s)</td></tr>
 {% if actual %}<tr><th>Datos actuales (se sustituyen)</th><td>{{actual.empresas}} empresa(s): {{actual.empresas_nombres|join(', ')}}<br>{{actual.documentos}} documentos ·

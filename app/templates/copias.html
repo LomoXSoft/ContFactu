@@ -13,10 +13,27 @@ diseños, logotipos y ajustes. {% if ultima %}Última copia: <b>{{ultima[:10]|fe
 <button class="btn" style="margin-top:1rem">{{ico('copia')}}Hacer copia ahora</button></form>
 <p class="muted" style="font-size:.86rem">Se recuerda la última carpeta usada. Las contraseñas del correo no van en la copia (están en el Administrador de credenciales de Windows).</p></div>
 
+<div class="card"><h3>Copias automáticas</h3>
+<p class="muted" style="margin-top:0">Opcionales y <b>desactivadas</b> mientras no marque la casilla. ContFactu las hace sin preguntar nada,
+guarda solo las más recientes y borra las más antiguas (únicamente las suyas, las que empiezan por <code>ContFactu-auto-</code>).
+Si la carpeta no está disponible (un pendrive quitado, una unidad de red…), la copia se guarda en <span class="muted">{{carpeta_auto}}</span> y se avisa.</p>
+<form method="post" action="/copias/automaticas" class="acciones">
+<label style="display:flex;gap:.4rem;align-items:center;font-size:1rem;color:inherit;width:100%"><input type="checkbox" name="activar" value="1" style="width:auto" {{'checked' if auto_on}}>Hacer copias automáticas</label>
+<label>Cuándo<select name="cuando">{% for k, t in CUANDO.items() %}<option value="{{k}}" {{'selected' if k == auto_cuando}}>{{t}}</option>{% endfor %}</select></label>
+<label>Guardar las últimas<input name="conservar" type="number" min="1" max="200" value="{{auto_conservar}}" style="width:6rem"></label>
+<label style="flex:1;min-width:300px">Carpeta (p. ej. un pendrive o una carpeta de Google Drive / OneDrive)<input name="carpeta" id="carpeta_auto" value="{{auto_carpeta}}"></label>
+<button type="button" class="btn sec elegir" style="display:none;margin-top:1rem" onclick="window.pywebview.api.elegir_carpeta(document.getElementById('carpeta_auto').value).then(r=>{if(r&&r.ok)document.getElementById('carpeta_auto').value=r.ruta;else if(r&&r.mensaje)alert(r.mensaje)})">Elegir carpeta…</button>
+<button class="btn sec" style="margin-top:1rem">{{ico('guardar')}}Guardar</button></form>
+{% if ok == 'auto' %}<p class="okmsg">✔ Ajustes de las copias automáticas guardados.{% if aviso == 'carpeta' %} <b>Atención:</b> ahora mismo no se puede escribir en esa carpeta; mientras siga así, las copias irán a {{carpeta_auto}}.{% endif %}</p>{% endif %}
+{% if auto_ultima %}<p class="muted" style="font-size:.86rem">Última copia automática: {{auto_ultima[:10]|fecha}} a las {{auto_ultima[11:16]}} — {{auto_ultima_archivo}}</p>{% endif %}
+<p class="muted" style="font-size:.86rem">«Al cerrar» funciona con la ventana propia de ContFactu. Si lo usa desde el navegador, elija «una vez al día».</p></div>
+
 <div class="card"><h3>Recordatorio</h3>
 <form method="post" action="/copias/ajustes" class="acciones">
 <label>Avisar si no hay copia en los últimos<input name="dias" type="number" min="0" max="365" value="{{dias}}" style="width:6rem"></label><span style="margin-top:1rem">días <span class="muted">(0 = no avisar)</span></span>
-<button class="btn sec" style="margin-top:1rem">{{ico('guardar')}}Guardar</button></form></div>
+<label style="display:flex;gap:.4rem;align-items:center;margin-top:1rem"><input type="checkbox" name="no_recordar" value="1" style="width:auto" {{'checked' if no_recordar}}>No volver a recordar</label>
+<button class="btn sec" style="margin-top:1rem">{{ico('guardar')}}Guardar</button></form>
+{% if no_recordar %}<p class="muted" style="font-size:.86rem">El recordatorio está desactivado. Desmarque «No volver a recordar» y guarde para volver a activarlo.</p>{% endif %}</div>
 
 <div class="card"><h3>{{ico('restaurar',22)}}Restaurar una copia</h3>
 <div class="aviso">Restaurar <b>sustituye todos los datos actuales</b> por los de la copia. Antes de hacerlo, ContFactu guarda automáticamente
@@ -28,14 +45,15 @@ contiene la copia y tendrá que confirmarlo.</div>
 <button type="button" class="btn sec" id="elegirzip" style="display:none;margin-top:1rem" onclick="window.pywebview.api.elegir_zip().then(r=>{if(r&&r.ok)document.getElementById('ruta').value=r.ruta})">Buscar…</button>
 <button class="btn sec" style="margin-top:1rem">{{ico('ver')}}Revisar la copia…</button></form></div>
 
-<div class="card"><h3>Copias automáticas</h3>
-<p class="muted" style="margin-top:0">ContFactu las hace solo: la primera vez que se abre una versión nueva (antes de poner al día la base de datos) y antes de cada
-restauración. Se conservan las {{20}} más recientes en <b>{{carpeta_auto}}</b>.</p>
-<table><tr><th>Archivo</th><th>Fecha</th><th class="n">Tamaño</th><th></th></tr>
-{% for a in automaticas %}<tr><td>{{a.nombre}}</td><td>{{a.fecha.strftime('%d/%m/%Y %H:%M')}}</td><td class="n">{{ (a.tam / 1024)|round(0)|int }} KB</td>
-<td><form method="post" action="/copias/restaurar/revisar" style="margin:0"><input type="hidden" name="ruta" value="{{a.ruta}}"><button class="btn sec peq">Revisar / restaurar…</button></form></td></tr>
-{% else %}<tr><td colspan="4" class="muted">Ninguna todavía.</td></tr>{% endfor %}</table>
+<div class="card"><h3>Copias disponibles</h3>
+<p class="muted" style="margin-top:0">Copias encontradas en la carpeta de las copias manuales, en la de las automáticas y en <b>{{carpeta_auto}}</b>
+(donde ContFactu guarda, sin que haga falta activarlo, una copia la primera vez que se abre una versión nueva y antes de cada restauración; se conservan las 20 más recientes).
+Pulse «Revisar» para ver lo que contiene una copia antes de decidir.</p>
+<table id="lista-copias"><tr><th>Archivo</th><th>Tipo</th><th>Fecha</th><th class="n">Tamaño</th><th></th></tr>
+{% for a in copias_lista %}<tr><td>{{a.nombre}}<br><span class="muted" style="font-size:.8rem">{{a.carpeta}}</span></td><td>{{a.tipo}}</td><td>{{a.fecha.strftime('%d/%m/%Y %H:%M')}}</td><td class="n">{{ (a.tam / 1024)|round(0)|int }} KB</td>
+<td><form method="post" action="/copias/restaurar/revisar" style="margin:0"><input type="hidden" name="ruta" value="{{a.ruta}}"><button class="btn sec peq">{{ico('ver')}}Revisar / restaurar…</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="muted">Ninguna todavía.</td></tr>{% endfor %}</table>
 <p class="muted" style="font-size:.86rem">Carpeta de datos: {{datos}}</p></div>
-<script>if(window.pywebview)document.querySelectorAll('#elegir,#elegirzip').forEach(b=>b.style.display='');
-window.addEventListener('pywebviewready',()=>document.querySelectorAll('#elegir,#elegirzip').forEach(b=>b.style.display=''));</script>
+<script>if(window.pywebview)document.querySelectorAll('#elegir,#elegirzip,.elegir').forEach(b=>b.style.display='');
+window.addEventListener('pywebviewready',()=>document.querySelectorAll('#elegir,#elegirzip,.elegir').forEach(b=>b.style.display=''));</script>
 {% endblock %}

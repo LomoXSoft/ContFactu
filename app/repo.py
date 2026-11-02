@@ -629,3 +629,60 @@ def libros_xlsx(con, eid, anio, trimestre=None):
     """Libros registro de IVA en Excel (ver excel.libros_iva)."""
     from .excel import libros_iva
     return libros_iva(con, eid, anio, trimestre)
+
+# ------------------------------------------------------------------------------------------------ 0.0.5: buscador global
+def _importe_buscado(q):
+    """'1.234,50' / '1234.5' / '1234,50 €' -> Decimal, o None si el texto no es un importe."""
+    import re
+    from decimal import Decimal, InvalidOperation
+    t = q.replace("€", "").replace(" ", "").strip()
+    if not re.fullmatch(r"-?\d{1,3}(\.\d{3})*(,\d{1,2})?|-?\d+([.,]\d{1,2})?", t):
+        return None
+    if "," in t:
+        t = t.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(\.\d{3})+", t):
+        t = t.replace(".", "")
+    try:
+        return Decimal(t)
+    except InvalidOperation:
+        return None
+
+def buscar(con, eid, q, limite=25):
+    """Busca en la empresa: clientes y proveedores (nombre, NIF, código, población), documentos de cualquier tipo
+    (número, cliente/proveedor, NIF, importe total, nº de factura del proveedor, concepto de las líneas) y productos
+    (conceptos usados en las líneas). Sin distinguir mayúsculas. Devuelve un dict con listas."""
+    q = (q or "").strip()
+    res = {"q": q, "clientes": [], "proveedores": [], "documentos": [], "productos": [], "total": 0}
+    if len(q) < 2 and not q.isdigit():
+        return res
+    like = f"%{q}%"
+    for tabla in ("clientes", "proveedores"):
+        res[tabla] = [dict(r) for r in con.execute(f"""SELECT id, codigo, nombre, nombre_f, nif, ciudad FROM {tabla}
+            WHERE empresa_id=? AND (nombre LIKE ? OR nombre_f LIKE ? OR nif LIKE ? OR codigo = ? OR ciudad LIKE ?)
+            ORDER BY nombre LIMIT ?""", (eid, like, like, like, q, like, limite))]
+    importe = _importe_buscado(q)
+    sql = """SELECT d.id, d.tipo, d.serie, d.numero, d.fecha, d.nombre_f, d.nif, d.total, d.pendiente FROM documentos d
+             WHERE d.empresa_id=? AND (d.numero LIKE ? OR (d.serie || d.numero) LIKE ? OR (d.serie || '-' || d.numero) LIKE ?
+             OR d.nombre_f LIKE ? OR d.nif LIKE ? OR d.num_factura_proveedor LIKE ?
+             OR EXISTS (SELECT 1 FROM lineas l WHERE l.documento_id=d.id AND l.concepto LIKE ?)"""
+    args = [eid, like, like, like, like, like, like, like]
+    if importe is not None:
+        sql += " OR ABS(CAST(d.total AS REAL) - ?) < 0.005"
+        args.append(float(importe))
+    sql += ") ORDER BY d.fecha DESC, d.id DESC LIMIT ?"
+    args.append(limite)
+    docs = []
+    for r in con.execute(sql, args):
+        r = dict(r)
+        r["visible"] = num_visible(r)
+        r["estado"] = estado_cobro(r)
+        docs.append(r)
+    res["documentos"] = docs
+    res["productos"] = [dict(r) for r in con.execute("""SELECT l.concepto AS concepto, COUNT(DISTINCT l.documento_id) AS usos,
+            MAX(d.fecha) AS ultima, (SELECT l2.precio FROM lineas l2 JOIN documentos d2 ON d2.id=l2.documento_id
+              WHERE d2.empresa_id=? AND l2.concepto=l.concepto ORDER BY d2.fecha DESC, l2.id DESC LIMIT 1) AS precio
+            FROM lineas l JOIN documentos d ON d.id=l.documento_id
+            WHERE d.empresa_id=? AND l.concepto LIKE ? AND COALESCE(l.comentario,0)=0 AND TRIM(l.concepto)<>''
+            GROUP BY l.concepto ORDER BY usos DESC, l.concepto LIMIT ?""", (eid, eid, like, limite))]
+    res["total"] = sum(len(res[k]) for k in ("clientes", "proveedores", "documentos", "productos"))
+    return res

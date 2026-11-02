@@ -51,8 +51,18 @@ Estado: **versión temprana (0.0.x)**. Use copias de seguridad.
   y solo al pulsar «Enviar»; queda registro de cada envío en el documento.
 - **Avisos al abrir**: cobros vencidos y que vencen en los próximos 7 días, y recordatorio de copia de seguridad.
 - **Copias de seguridad en un clic** y restauración, con copia automática antes de cada actualización.
+- **Copias automáticas opcionales** (desactivadas hasta que se activan): al cerrar ContFactu y/o una vez al día, en la
+  carpeta que se elija (un pendrive, Google Drive, OneDrive…), guardando solo las últimas (10 por defecto).
+- **Restaurar desde la lista de copias**, con vista previa del contenido (empresas, documentos, fecha y versión).
+- **Buscador**: una casilla en la barra superior (o `Ctrl+K`) que encuentra clientes, proveedores, documentos (por número,
+  nombre, NIF, importe o concepto) y productos de la empresa abierta.
 
-Capturas (con datos inventados) en [`capturas/`](capturas/).
+Capturas (con datos inventados) en [`capturas/`](capturas/). Algunas de la 0.0.5:
+
+| Copias automáticas (opcionales) | Buscador |
+| --- | --- |
+| ![Copias automáticas y lista de copias](capturas/39_v005_copias_automaticas.png) | ![Buscador con resultados](capturas/41_v005_buscador_cliente.png) |
+| ![Vista previa antes de restaurar](capturas/40_v005_restaurar_vista_previa.png) | ![Aviso con «No volver a recordar»](capturas/43_v005_aviso_no_volver_a_recordar.png) |
 
 ## Requisitos
 
@@ -65,7 +75,7 @@ Capturas (con datos inventados) en [`capturas/`](capturas/).
 
 1. Descargue `ContFactu-Setup-<versión>.exe` de la [última versión publicada](https://github.com/LomoXSoft/ContFactu/releases/latest).
    Si quiere, compruebe su SHA-256, que figura en las notas de la versión:
-   `Get-FileHash .\ContFactu-Setup-0.0.4.exe` en PowerShell.
+   `Get-FileHash .\ContFactu-Setup-0.0.5.exe` en PowerShell.
 2. Ejecútelo. Se instala en `C:\Program Files\ContFactu` y crea accesos directos en el menú Inicio y, si lo elige, en el escritorio.
    El instalador no está firmado digitalmente, así que Windows SmartScreen puede avisar: «Más información» → «Ejecutar de todas formas».
 3. **Actualizar**: ejecute el instalador de la versión nueva encima de la anterior.
@@ -77,16 +87,16 @@ Capturas (con datos inventados) en [`capturas/`](capturas/).
 
 ### Comprobar una actualización
 
-Para quedarse tranquilo al actualizar un equipo que ya tiene datos (por ejemplo, de la 0.0.1, la 0.0.2 o la 0.0.3 a la 0.0.4):
+Para quedarse tranquilo al actualizar un equipo que ya tiene datos (por ejemplo, de la 0.0.1, la 0.0.4 o cualquier otra a la 0.0.5):
 
 1. **Antes**, con la versión antigua abierta, anote algunos datos de control: el número de empresas, y de una de ellas el
    número de facturas del año y el total de la última factura. (Si quiere, copie además la carpeta `%APPDATA%\ContFactu`
    a un pendrive.)
 2. Cierre ContFactu y ejecute el instalador nuevo.
-3. Abra ContFactu. En «Acerca de» debe figurar la versión **0.0.4**.
+3. Abra ContFactu. En «Acerca de» debe figurar la versión **0.0.5**.
 4. Abra la carpeta `%APPDATA%\ContFactu\copias-automaticas` (pegue la ruta en la barra del Explorador): debe haber un
-   archivo `ContFactu-antes-de-0.0.4-<fecha>.zip`. Es la copia de los datos tal como estaban **antes** de actualizar.
-   En la pantalla «Copias de seguridad» aparece en la lista de copias automáticas.
+   archivo `ContFactu-antes-de-0.0.5-<fecha>.zip`. Es la copia de los datos tal como estaban **antes** de actualizar.
+   En la pantalla «Copias de seguridad» aparece en la lista «Copias disponibles».
 5. Compruebe los datos de control del paso 1: mismas empresas, mismas facturas y mismos totales.
 6. Si algo no cuadra, en «Copias de seguridad» pulse «Revisar / restaurar…» junto a esa copia automática. También puede
    volver a instalar la versión anterior y restaurar esa copia.
@@ -114,8 +124,26 @@ Para quedarse tranquilo al actualizar un equipo que ya tiene datos (por ejemplo,
   - Por defecto se guarda en `Documentos\ContFactu-Copias`. Puede elegir otra carpeta (un pendrive, OneDrive…) y ContFactu
     la recuerda.
   - Si pasan más de 7 días sin copia, ContFactu lo recuerda al abrir. Los días se cambian en la misma pantalla (0 = no avisar).
-- **Restaurar**: en «Copias de seguridad» elija el `.zip`. ContFactu muestra lo que contiene y pide confirmación. Antes
-  de sustituir nada, guarda una copia automática de los datos actuales para poder deshacerlo.
+    El aviso tiene una casilla **«No volver a recordar»**; para volver a activarlo, desmárquela en «Copias» → «Recordatorio».
+- **Copias automáticas (opcionales)**: en «Copias» → «Copias automáticas», marque «Hacer copias automáticas».
+  - **Por defecto están desactivadas**: quien actualiza desde la 0.0.4 no nota ningún cambio hasta que las activa, y
+    ContFactu no pregunta nada al abrir ni al cerrar.
+  - Cuándo: al cerrar ContFactu (por defecto), una vez al día al abrirlo, o ambas. «Al cerrar» funciona con la ventana
+    propia; si usa el navegador, elija «una vez al día».
+  - Dónde: por defecto, la misma carpeta de las copias manuales (`Documentos\ContFactu-Copias`); puede elegir un pendrive
+    o una carpeta sincronizada (Google Drive, OneDrive…).
+  - Se guardan las últimas 10 (configurable de 1 a 200). Solo se borran las antiguas creadas así (`ContFactu-auto-….zip`),
+    nunca las manuales.
+  - Si la carpeta no está disponible (pendrive quitado, unidad desconectada), la copia se guarda en
+    `%APPDATA%\ContFactu\copias-automaticas` y se avisa la próxima vez que se abre el programa.
+  - Las copias automáticas cuentan para el recordatorio de los 7 días.
+- **Restaurar**: en «Copias de seguridad», en la lista «Copias disponibles», pulse «Revisar / restaurar…», o elija el `.zip`. ContFactu muestra lo que contiene (empresas, documentos, clientes,
+  proveedores, fecha y versión) junto a los datos actuales, y pide confirmación. Antes de sustituir nada, guarda una copia
+  automática de los datos actuales para poder deshacerlo. Las copias de versiones anteriores se ponen al día al restaurarlas.
+- **Buscador**: la casilla «Buscar…» de la barra superior (o `Ctrl+K`). Busca en la empresa abierta clientes y proveedores
+  (nombre, NIF, código, población), documentos (número, cliente o proveedor, NIF, importe total como `121,00`, nº de factura
+  del proveedor o concepto de una línea) y productos (conceptos de las líneas, con su último precio). Con ↓ ↑ se recorren
+  los resultados y con Intro se abre el elegido. Nunca se abre sola.
 - **Copias automáticas** en `%APPDATA%\ContFactu\copias-automaticas`: antes de poner al día la base de datos con una versión
   nueva y antes de cada restauración. Se conservan las 20 más recientes.
 - Las contraseñas del correo **no** están en la base de datos ni en las copias: se guardan en el Administrador de credenciales
@@ -170,7 +198,9 @@ Las pruebas usan solo datos inventados. Algunas necesitan una copia real de Fact
 Requisitos:
 1. **Python 3.12** de 64 bits (python.org), en el PATH.
 2. **Inno Setup 6** (jrsoftware.org).
-3. Conexión a Internet la primera vez.
+3. Conexión a Internet la primera vez (para 7-Zip). Sin Internet también vale si ya hay una copia comprobada de 7-Zip
+   25.01: la que guarda el propio script en `%LOCALAPPDATA%\ContFactu-build\7zip-25.01`, un 7-Zip 25.01 de 64 bits
+   instalado en `C:\Program Files\7-Zip`, o la carpeta que indique en la variable `CONTFACTU_7ZIP_DIR`.
 
 Después ejecute:
 
@@ -180,7 +210,7 @@ instalador\construir.bat
 
 El script hace lo siguiente:
 1. Crea `venv-win`, instala las dependencias y PyInstaller, y pasa las pruebas.
-2. Descarga **7-Zip 25.01** de www.7-zip.org, comprueba su SHA-256 y lo deja en `instalador\7zip` (`instalador\obtener_7zip.ps1`). Sirve para abrir copias `.rar`. 7-Zip no está en el repositorio porque su licencia (LGPL con restricción unRAR) es distinta.
+2. Prepara **7-Zip 25.01**: primero busca una copia local y, si no hay, lo descarga de www.7-zip.org; en ambos casos comprueba su SHA-256 y lo deja en `instalador\7zip` (`instalador\obtener_7zip.ps1`). Sirve para abrir copias `.rar`. 7-Zip no está en el repositorio porque su licencia (LGPL con restricción unRAR) es distinta.
 3. Empaqueta con PyInstaller (`instalador\ContFactu.spec`).
 4. Comprueba que no se ha empaquetado ningún `.db`, `.dbf` ni `.pdf`.
 5. Compila `instalador\ContFactu.iss`.

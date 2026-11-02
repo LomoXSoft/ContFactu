@@ -665,6 +665,8 @@ def avisos(request, e=None):
                 res["cobros"] = a
         if not SESION["copia_oculta"] and not request.url.path.startswith("/copias") and copias.necesita_aviso(con):
             res["copia"] = {"dias": copias.dias_desde_ultima(con), "plazo": copias.dias_aviso(con)}
+        if copias.auto_activada(con) and ajuste(con, "copia_auto_aviso"):   # solo si el usuario activó las automáticas
+            res["copia_auto_aviso"] = ajuste(con, "copia_auto_aviso")
     except Exception:   # un aviso nunca debe impedir trabajar
         pass
     return res
@@ -681,23 +683,44 @@ async def copia_recordar_luego(request: Request):
     SESION["copia_oculta"] = True
     return RedirectResponse(request.headers.get("referer") or "/", status_code=303)
 
+@app.post("/copias/no-recordar")
+async def copia_no_recordar(request: Request):
+    """Casilla «No volver a recordar» del aviso de copia: se puede volver a activar en Copias > Recordatorio."""
+    f = await request.form()
+    con = db()
+    if f.get("no_recordar") == "1":
+        with con:
+            poner_ajuste(con, "copia_no_recordar", "1")
+    SESION["copia_oculta"] = True
+    return RedirectResponse(request.headers.get("referer") or "/", status_code=303)
+
+@app.post("/copias/aviso-auto/visto")
+async def copia_aviso_auto_visto(request: Request):
+    con = db()
+    with con:
+        poner_ajuste(con, "copia_auto_aviso", None)
+    return RedirectResponse(request.headers.get("referer") or "/", status_code=303)
+
 # ------------------------------------------------------------------------------------------------ copias de seguridad
 from . import copias
 from .db import ajuste, poner_ajuste
 
 def _ctx_copias(con, **extra):
     auto = copias.carpeta_automaticas()
-    lista = sorted(auto.glob("ContFactu-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True) if auto.exists() else []
-    return dict({"carpeta": ajuste(con, "copia_carpeta") or str(copias.carpeta_defecto()), "ultima": ajuste(con, "copia_ultima"),
+    carpeta = ajuste(con, "copia_carpeta") or str(copias.carpeta_defecto())
+    return dict({"carpeta": carpeta, "ultima": ajuste(con, "copia_ultima"),
                  "ultima_archivo": ajuste(con, "copia_ultima_archivo"), "dias": copias.dias_aviso(con),
-                 "automaticas": [{"nombre": p.name, "ruta": str(p), "fecha": datetime.datetime.fromtimestamp(p.stat().st_mtime),
-                                  "tam": p.stat().st_size} for p in lista],
+                 "no_recordar": ajuste(con, "copia_no_recordar") == "1",
+                 "auto_on": copias.auto_activada(con), "auto_cuando": copias.auto_cuando(con), "CUANDO": copias.CUANDO,
+                 "auto_carpeta": str(copias.auto_carpeta(con)), "auto_conservar": copias.auto_conservar(con),
+                 "auto_ultima": ajuste(con, "copia_auto_ultima"), "auto_ultima_archivo": ajuste(con, "copia_auto_ultima_archivo"),
+                 "copias_lista": copias.listar_copias(carpeta, copias.auto_carpeta(con), auto)[:60],
                  "carpeta_auto": str(auto), "datos": str(data_dir()), "hay": bool(repo.empresas(con))}, **extra)
 
 @app.get("/copias", response_class=HTMLResponse)
-def copias_ver(request: Request, ok: str = "", archivo: str = ""):
+def copias_ver(request: Request, ok: str = "", archivo: str = "", aviso: str = ""):
     con = db()
-    return tpl.TemplateResponse(request, "copias.html", _ctx_copias(con, ok=ok, archivo=archivo))
+    return tpl.TemplateResponse(request, "copias.html", _ctx_copias(con, ok=ok, archivo=archivo, aviso=aviso))
 
 @app.post("/copias/crear", response_class=HTMLResponse)
 async def copias_crear(request: Request):
@@ -721,9 +744,40 @@ async def copias_ajustes(request: Request):
         raise ErrorNegocio("Los días del recordatorio deben ser un número entre 0 (no recordar) y 365.")
     with con:
         poner_ajuste(con, "copia_dias", n)
+        poner_ajuste(con, "copia_no_recordar", "1" if f.get("no_recordar") == "1" else None)
         if (f.get("carpeta") or "").strip():
             poner_ajuste(con, "copia_carpeta", f.get("carpeta").strip().strip('"'))
     return RedirectResponse("/copias?ok=ajustes", status_code=303)
+
+@app.post("/copias/automaticas", response_class=HTMLResponse)
+async def copias_automaticas_ajustes(request: Request):
+    """Copias automáticas (0.0.5). Desactivadas por defecto: solo se hacen si el usuario marca la casilla."""
+    f = await request.form()
+    con = db()
+    activar = f.get("activar") == "1"
+    cuando = f.get("cuando") or "cerrar"
+    carpeta = (f.get("carpeta") or "").strip().strip('"')
+    try:
+        if cuando not in copias.CUANDO:
+            raise ErrorNegocio("Elija cuándo hacer las copias automáticas.")
+        try:
+            n = int(f.get("conservar") or copias.CONSERVAR_PROGRAMADAS); assert 1 <= n <= 200
+        except (ValueError, AssertionError):
+            raise ErrorNegocio("El número de copias que se guardan debe estar entre 1 y 200.")
+        if carpeta and not Path(carpeta).is_absolute():
+            raise ErrorNegocio(f"Indique una carpeta completa (p. ej. {copias.carpeta_defecto()}).")
+    except ErrorNegocio as ex:
+        return tpl.TemplateResponse(request, "copias.html", _ctx_copias(con, error=str(ex)), status_code=400)
+    aviso = ""
+    if activar and carpeta and not copias._carpeta_usable(carpeta):
+        aviso = "&aviso=carpeta"
+    with con:
+        poner_ajuste(con, "copia_auto", "1" if activar else "0")
+        poner_ajuste(con, "copia_auto_cuando", cuando)
+        poner_ajuste(con, "copia_auto_conservar", n)
+        poner_ajuste(con, "copia_auto_carpeta", carpeta or None)
+        poner_ajuste(con, "copia_auto_aviso", None)
+    return RedirectResponse(f"/copias?ok=auto{aviso}", status_code=303)
 
 @app.post("/copias/restaurar/revisar", response_class=HTMLResponse)
 async def copias_revisar(request: Request):
@@ -774,6 +828,12 @@ async def copias_restaurar(request: Request):
     SESION["alertas_ocultas"].clear()
     return tpl.TemplateResponse(request, "restaurado.html", {"info": info, "previa": str(previa) if previa else None,
                                                              "hay": bool(repo.empresas(db()))})
+
+# ------------------------------------------------------------------------------------------------ 0.0.5: buscador
+@app.get("/e/{eid}/buscar", response_class=HTMLResponse)
+def buscar(request: Request, eid: int, q: str = ""):
+    con = db(); e = _emp(con, eid)
+    return tpl.TemplateResponse(request, "buscar.html", {"e": e, "r": repo.buscar(con, eid, q), "q": q})
 
 @app.get("/salud")
 def salud():

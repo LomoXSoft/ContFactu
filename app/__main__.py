@@ -49,6 +49,23 @@ def puerto_libre(desde=PUERTO, intentos=50):
 def _log(msg):
     print(time.strftime("%Y-%m-%d %H:%M:%S"), msg, flush=True)
 
+def copia_programada(cuando):
+    """Copias automáticas de la 0.0.5: no hacen nada si el usuario no las ha activado en «Copias»."""
+    try:
+        if cuando == "abrir":
+            time.sleep(15)   # deja que el programa termine de abrir (y de poner al día la base, si toca)
+        from .db import connect
+        from . import copias
+        con = connect()
+        try:
+            ruta = copias.al_abrir(con) if cuando == "abrir" else copias.al_cerrar(con)
+        finally:
+            con.close()
+        if ruta:
+            _log(f"Copia automática ({cuando}): {ruta}")
+    except Exception as e:
+        _log(f"Copia automática ({cuando}) no realizada: {e!r}")
+
 def main():
     from .db import data_dir
     if getattr(sys, "frozen", False) and (sys.stdout is None or sys.stderr is None):
@@ -76,12 +93,14 @@ def main():
         time.sleep(0.05)
     from .ventana import abrir_ventana, webview2_instalado, limpiar_temporales
     limpiar_temporales()
+    threading.Thread(target=copia_programada, args=("abrir",), daemon=True).start()   # solo si el usuario la activó
     usar_ventana = os.environ.get("CONTFACTU_NAVEGADOR") != "1" and webview2_instalado()
     if usar_ventana:
         try:
             abrir_ventana(url, f"ContFactu {__version__}", al_cargar=cerrar_splash,
                           registrar_mostrar=lambda fn: MOSTRAR.__setitem__("fn", fn))
             _log("Ventana cerrada: deteniendo el servidor")
+            copia_programada("cerrar")
             servidor.should_exit = True; hilo.join(timeout=5)
             return
         except Exception as e:                   # sin pywebview / WebView2: seguimos con el navegador

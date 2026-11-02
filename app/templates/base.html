@@ -28,6 +28,8 @@ header nav a .ico{background:#fff;border-radius:4px;padding:1px;margin-right:.35
 header .marca{display:inline-flex;align-items:center}header .marca .ico{background:#fff;border-radius:4px;padding:1px}h3{margin:.4rem 0 .5rem}
 </style></head><body>
 <header><a href="/" class="emp marca">{{ico('contfactu',22)}}ContFactu</a>{% if e %}<span class="emp">{{ e.nombre }}</span>
+<form method="get" action="/e/{{e.id}}/buscar" role="search" class="buscador" style="display:inline-block;margin:0 .6rem 0 0;vertical-align:middle">
+<input type="search" name="q" id="buscador-global" value="{{q if q is defined and request.url.path.endswith('/buscar') else ''}}" placeholder="Buscar…  (Ctrl+K)" aria-label="Buscar clientes, proveedores, documentos y productos" title="Clientes, proveedores, NIF, nº de documento, importe o producto" style="width:15rem;padding:.2rem .5rem;border-radius:6px;border:1px solid #ffffff66;font-size:.88rem"></form>
 <nav>{% set A = request.url.path ~ '?' ~ request.url.query %}
 {% for href, icono, txt in [("/e/%d/documentos?tipo=F"|format(e.id),"factura","Facturas"),("/e/%d/documentos?tipo=P"|format(e.id),"presupuesto","Presupuestos"),
 ("/e/%d/documentos?tipo=A"|format(e.id),"albaran","Albaranes"),("/e/%d/documentos?tipo=G"|format(e.id),"gasto","Gastos"),
@@ -39,7 +41,12 @@ header .marca{display:inline-flex;align-items:center}header .marca .ico{backgrou
 {% else %}La última copia de seguridad es de hace {{AV.copia.dias}} días.{% endif %}</span>
 <form method="post" action="/copias/crear" style="display:inline"><button class="btn peq">{{ico('copia')}}Hacer copia ahora</button></form>
 <a href="/copias" class="btn sec peq">Opciones</a>
-<form method="post" action="/copias/recordar-luego" style="display:inline;margin-left:auto"><button class="btn sec peq" title="No volver a avisar hasta que se abra de nuevo ContFactu">Recordar más tarde</button></form></div>{% endif %}
+<form method="post" action="/copias/no-recordar" style="display:inline-flex;gap:.5rem;align-items:center;margin-left:auto">
+<label style="display:inline-flex;gap:.3rem;align-items:center;font-size:.85rem;margin:0" title="Se puede volver a activar en Copias &gt; Recordatorio"><input type="checkbox" name="no_recordar" value="1" style="width:auto">No volver a recordar</label>
+<button class="btn sec peq" title="Sin la casilla marcada: no volver a avisar hasta que se abra de nuevo ContFactu">Recordar más tarde</button></form></div>{% endif %}
+{% if AV.copia_auto_aviso %}<div class="card aviso banda" role="status">{{ico('copia',20)}}<span>{{AV.copia_auto_aviso}}</span>
+<a href="/copias" class="btn sec peq">Opciones</a>
+<form method="post" action="/copias/aviso-auto/visto" style="display:inline;margin-left:auto"><button class="btn sec peq">Entendido</button></form></div>{% endif %}
 {% if AV.cobros %}{% set AC = AV.cobros %}<div class="card aviso banda" role="status" style="{{'border-left-color:var(--rojo);background:#fde8e7' if AC.vencidos else ''}}">{{ico('alerta',20)}}<span>
 {% if AC.vencidos %}<b>{{AC.vencidos|length}} {{'cobro vencido' if AC.vencidos|length == 1 else 'cobros vencidos'}}</b> ({{AC.importe_vencido|eur}} €){% endif %}
 {% if AC.vencidos and AC.proximos %} · {% endif %}
@@ -49,6 +56,11 @@ header .marca{display:inline-flex;align-items:center}header .marca .ico{backgrou
 <form method="post" action="/e/{{e.id}}/alertas/ocultar" style="display:inline;margin-left:auto"><button class="btn sec peq" title="Ocultar hasta la próxima vez que se abra ContFactu">Ocultar</button></form></div>{% endif %}
 {% block c %}{% endblock %}</main>
 <footer style="text-align:center;color:#667085;font-size:.8rem;padding:.5rem 0 1rem"><a href="/acerca" style="color:#667085">ContFactu {{VERSION}}</a></footer>
+<script>
+/* Buscador: solo se enfoca si el usuario hace clic en él o pulsa Ctrl+K. Nunca se abre solo. */
+document.addEventListener('keydown',function(ev){var b=document.getElementById('buscador-global'); if(!b) return;
+  if((ev.ctrlKey||ev.metaKey)&&(ev.key==='k'||ev.key==='K')){ev.preventDefault();b.focus();b.select();}});
+</script>
 <script>
 /* Dentro de la ventana propia (pywebview) no hay pestañas ni descargas del navegador:
    los PDF se abren con el visor predeterminado de Windows y los xlsx/CSV se guardan con el diálogo nativo. */

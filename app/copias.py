@@ -216,15 +216,18 @@ def restaurar(ruta_zip):
     return info, previa
 
 def dias_desde_ultima(con, ahora=None):
-    """Días desde la última copia manual, o None si nunca se ha hecho."""
+    """Días desde la última copia (manual, o automática si el usuario las activó), o None si nunca se ha hecho."""
     from .db import ajuste
-    u = ajuste(con, "copia_ultima")
-    if not u:
+    fechas = []
+    for clave in ("copia_ultima", "copia_auto_ultima"):
+        try:
+            if ajuste(con, clave):
+                fechas.append(datetime.datetime.fromisoformat(ajuste(con, clave)))
+        except ValueError:
+            pass
+    if not fechas:
         return None
-    try:
-        return ((ahora or datetime.datetime.now()) - datetime.datetime.fromisoformat(u)).days
-    except ValueError:
-        return None
+    return ((ahora or datetime.datetime.now()) - max(fechas)).days
 
 def dias_aviso(con):
     from .db import ajuste
@@ -235,8 +238,133 @@ def dias_aviso(con):
 
 def necesita_aviso(con, ahora=None):
     """True si conviene recordar que se haga una copia (hay datos y la última copia es más antigua que el plazo)."""
+    from .db import ajuste
     n = dias_aviso(con)
-    if n == 0 or not con.execute("SELECT 1 FROM empresas").fetchone():
+    if n == 0 or ajuste(con, "copia_no_recordar") == "1" or not con.execute("SELECT 1 FROM empresas").fetchone():
         return False
     d = dias_desde_ultima(con, ahora)
     return d is None or d >= n
+
+# ------------------------------------------------------------------------------------------------ 0.0.5
+# Todo lo nuevo es OPCIONAL y viene DESACTIVADO: quien actualiza desde la 0.0.4 sigue igual hasta que lo active
+# en «Copias». Ajustes (tabla ajustes):
+#   copia_auto            '1' = copias automáticas activadas (por defecto: desactivadas)
+#   copia_auto_cuando     'cerrar' | 'diaria' | 'ambas'  (por defecto 'cerrar')
+#   copia_auto_carpeta    carpeta de destino (por defecto, la misma de las copias manuales)
+#   copia_auto_conservar  cuántas copias automáticas se guardan (por defecto 10)
+#   copia_no_recordar     '1' = el usuario marcó «No volver a recordar» en el aviso de 7 días
+CONSERVAR_PROGRAMADAS = 10
+PREFIJO_PROGRAMADA = "ContFactu-auto"
+CUANDO = {"cerrar": "al cerrar ContFactu", "diaria": "una vez al día (al abrir)", "ambas": "al cerrar y una vez al día"}
+
+def auto_activada(con):
+    from .db import ajuste
+    return ajuste(con, "copia_auto") == "1"
+
+def auto_cuando(con):
+    from .db import ajuste
+    v = ajuste(con, "copia_auto_cuando") or "cerrar"
+    return v if v in CUANDO else "cerrar"
+
+def auto_conservar(con):
+    from .db import ajuste
+    try:
+        return min(200, max(1, int(ajuste(con, "copia_auto_conservar", CONSERVAR_PROGRAMADAS))))
+    except (TypeError, ValueError):
+        return CONSERVAR_PROGRAMADAS
+
+def auto_carpeta(con):
+    from .db import ajuste
+    return Path(ajuste(con, "copia_auto_carpeta") or ajuste(con, "copia_carpeta") or carpeta_defecto())
+
+def _carpeta_usable(carpeta):
+    """True si se puede escribir en la carpeta (un USB quitado o una unidad de red caída devuelven False)."""
+    try:
+        carpeta = Path(carpeta)
+        if not carpeta.is_absolute():
+            return False
+        carpeta.mkdir(parents=True, exist_ok=True)
+        prueba = carpeta / f".contfactu-prueba-{os.getpid()}"
+        prueba.write_bytes(b"ok"); prueba.unlink()
+        return True
+    except OSError:
+        return False
+
+def _rotar(carpeta, prefijo, conservar):
+    zips = sorted(Path(carpeta).glob(f"{prefijo}-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for viejo in zips[conservar:]:
+        try: viejo.unlink()
+        except OSError: pass
+
+def copia_programada(con, motivo="cerrar", ahora=None):
+    """Copia automática que el usuario ha activado. Si la carpeta elegida no está disponible, la deja en la carpeta
+    de copias automáticas de los datos y anota un aviso para la próxima vez que se abra ContFactu.
+    Devuelve la ruta del .zip, o None si las copias automáticas están desactivadas o no hay datos."""
+    from .db import poner_ajuste, db_path
+    if not auto_activada(con) or not db_path().exists() or not con.execute("SELECT 1 FROM empresas").fetchone():
+        return None
+    destino = auto_carpeta(con)
+    aviso = None
+    if not _carpeta_usable(destino):
+        aviso = (f"La copia automática no se pudo guardar en «{destino}» (¿está conectado el disco o la unidad?). "
+                 f"Se ha guardado en «{carpeta_automaticas()}».")
+        destino = carpeta_automaticas()
+        destino.mkdir(parents=True, exist_ok=True)
+    ruta = crear_zip(_nombre_libre(destino, PREFIJO_PROGRAMADA))
+    _rotar(destino, PREFIJO_PROGRAMADA, auto_conservar(con))
+    with con:
+        poner_ajuste(con, "copia_auto_ultima", (ahora or datetime.datetime.now()).isoformat(timespec="seconds"))
+        poner_ajuste(con, "copia_auto_ultima_archivo", str(ruta))
+        poner_ajuste(con, "copia_auto_aviso", aviso)
+    return ruta
+
+def toca_diaria(con, ahora=None):
+    """True si está activada la copia diaria y hoy todavía no se ha hecho ninguna automática."""
+    from .db import ajuste
+    if not auto_activada(con) or auto_cuando(con) not in ("diaria", "ambas"):
+        return False
+    u = ajuste(con, "copia_auto_ultima")
+    return not u or u[:10] != (ahora or datetime.datetime.now()).date().isoformat()
+
+def toca_al_cerrar(con):
+    return auto_activada(con) and auto_cuando(con) in ("cerrar", "ambas")
+
+def al_abrir(con, ahora=None):
+    """Se llama al arrancar: copia diaria si toca. Nunca lanza excepciones (no debe impedir abrir el programa)."""
+    try:
+        if toca_diaria(con, ahora):
+            return copia_programada(con, "diaria", ahora)
+    except Exception:
+        pass
+    return None
+
+def al_cerrar(con):
+    """Se llama al cerrar la ventana: copia si el usuario lo activó. Nunca lanza excepciones."""
+    try:
+        if toca_al_cerrar(con):
+            return copia_programada(con, "cerrar")
+    except Exception:
+        pass
+    return None
+
+def listar_copias(*carpetas):
+    """Copias de ContFactu (.zip) en las carpetas indicadas, de la más reciente a la más antigua, sin repetir."""
+    vistos, res = set(), []
+    for c in carpetas:
+        try:
+            c = Path(c)
+            if not c.is_dir():
+                continue
+            for p in c.glob("ContFactu-*.zip"):
+                k = str(p.resolve()).lower()
+                if k in vistos:
+                    continue
+                vistos.add(k)
+                st = p.stat()
+                tipo = ("automática" if p.name.startswith(PREFIJO_PROGRAMADA) else
+                        "manual" if p.name.startswith("ContFactu-copia") else "de seguridad (actualizar/restaurar)")
+                res.append({"nombre": p.name, "ruta": str(p), "carpeta": str(p.parent), "tipo": tipo,
+                            "fecha": datetime.datetime.fromtimestamp(st.st_mtime), "tam": st.st_size})
+        except OSError:
+            continue
+    return sorted(res, key=lambda x: x["fecha"], reverse=True)

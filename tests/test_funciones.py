@@ -480,15 +480,15 @@ def test_origen_rar_con_fc5_en_subcarpeta():
 # ---------------------------------------------------------------- 0.0.2: versión, ventana propia, iconos, splash
 def test_version_unica_y_visible(cliente_web):
     import app
-    assert app.__version__ == "0.0.4"
+    assert app.__version__ == "0.0.5"
     h = cliente_web.get("/acerca").text
-    assert "ContFactu 0.0.4" in h and "LomoXSoft" in h
-    assert cliente_web.get("/salud").text == "ContFactu OK 0.0.4"
-    assert "<title>ContFactu 0.0.4</title>" in cliente_web.get("/asistente").text
+    assert "ContFactu 0.0.5" in h and "LomoXSoft" in h
+    assert cliente_web.get("/salud").text == "ContFactu OK 0.0.5"
+    assert "<title>ContFactu 0.0.5</title>" in cliente_web.get("/asistente").text
 
 def test_changelog_tiene_versiones():
     t = (Path(__file__).parent.parent / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "0.0.1" in t and "0.0.2" in t and "0.0.3" in t and "0.0.4" in t
+    assert "0.0.1" in t and "0.0.2" in t and "0.0.3" in t and "0.0.4" in t and "0.0.5" in t
 
 def test_iconos_svg_validos_y_en_menu(cliente_web, con):
     import xml.etree.ElementTree as ET
@@ -565,7 +565,7 @@ def test_main_usa_navegador_si_falla_la_ventana(monkeypatch):
     monkeypatch.setattr(V, "webview2_instalado", lambda: True)
     monkeypatch.setattr(V, "abrir_ventana", ventana_ok)
     M.main()                                         # vuelve al "cerrar la ventana"
-    assert estado["titulo"] == "ContFactu 0.0.4" and abiertos == []
+    assert estado["titulo"] == "ContFactu 0.0.5" and abiertos == []
     import time, urllib.request
     time.sleep(0.3)
     with pytest.raises(Exception):                   # servidor detenido al cerrar la ventana

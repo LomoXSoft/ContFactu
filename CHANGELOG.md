@@ -6,6 +6,30 @@ Formato: cada versión con lo nuevo, lo cambiado y lo corregido. La versión sal
 La 0.0.3 es la primera versión publicada en GitHub. La 0.0.1 y la 0.0.2 fueron versiones de prueba sin publicar; su
 historial de git no forma parte de este repositorio.
 
+## [0.0.5] — 2026-11-02
+
+Regla de esta versión: **todo lo nuevo es opcional y viene desactivado**. Quien actualiza desde la 0.0.4 sigue igual
+(mismos avisos, nada nuevo al abrir ni al cerrar) hasta que lo activa. Hay pruebas que comprueban estos valores por defecto.
+
+### Nuevo
+- **Copias automáticas** (menú «Copias» → «Copias automáticas»), **desactivadas por defecto**:
+  - al cerrar ContFactu (por defecto), una vez al día al abrirlo, o ambas; sin preguntas ni ventanas;
+  - en la carpeta que se elija (pendrive, Google Drive, OneDrive…); por defecto, la de las copias manuales;
+  - se guardan las últimas 10 (de 1 a 200); solo se borran las automáticas antiguas (`ContFactu-auto-….zip`);
+  - si la carpeta no está disponible, la copia va a `%APPDATA%\ContFactu\copias-automaticas` y se avisa al abrir.
+- **Restaurar desde la lista «Copias disponibles»**: copias manuales, automáticas y de seguridad de las tres carpetas,
+  con su tipo, fecha y tamaño. La vista previa indica si la copia es de una versión anterior (se pone al día al restaurar).
+- **Buscador global**: casilla «Buscar…» en la barra superior de cada empresa (o `Ctrl+K`). Encuentra clientes y
+  proveedores (nombre, NIF), documentos de cualquier tipo (número, nombre, NIF, importe, concepto) y productos. Se recorre
+  con el teclado (↓ ↑ e Intro). Nunca se abre ni se enfoca sola.
+- **«No volver a recordar»** en el aviso de 7 días sin copia. Se vuelve a activar en «Copias» → «Recordatorio».
+- **Enlace a Ko-fi** en «Acerca de» (una línea pequeña; se abre en el navegador del sistema). Sin ventanas ni avisos.
+
+### Cambiado
+- `construir.bat` puede construir **sin Internet**: reutiliza una copia de 7-Zip 25.01 ya comprobada por SHA-256
+  (`%LOCALAPPDATA%\ContFactu-build\7zip-25.01`, `C:\Program Files\7-Zip` o `CONTFACTU_7ZIP_DIR`) antes de descargarlo.
+- Las pruebas de versiones anteriores ya no tienen la versión escrita a mano.
+
 ## [0.0.4] — 2026-11-02
 
 ### Nuevo
