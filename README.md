@@ -20,7 +20,7 @@ Estado: **versión temprana (0.0.x)**. Use copias de seguridad.
 [Importar de FactuCont 5](#importar-de-factucont-5) · [Datos y copias de seguridad](#datos-y-copias-de-seguridad) ·
 [Correo](#enviar-facturas-por-correo) ·
 [Desarrollo](#ejecutar-desde-el-código-desarrollo) · [Pruebas](#pruebas) · [Construir el instalador](#construir-el-instalador-windows) ·
-[Limitaciones y planes](#limitaciones-y-planes) · [Licencia](#licencia)
+[Limitaciones y planes](#limitaciones-y-planes) · [Apoyar el proyecto](#apoyar-el-proyecto) · [Licencia](#licencia)
 
 ## Funciones
 
@@ -223,6 +223,12 @@ Resultado: `instalador\Output\ContFactu-Setup-<versión>.exe`. La versión se de
 
 Errores y sugerencias: [Issues](https://github.com/LomoXSoft/ContFactu/issues). Para contribuir, vea [CONTRIBUTING.md](CONTRIBUTING.md).
 El historial de cambios está en [CHANGELOG.md](CHANGELOG.md).
+
+## Apoyar el proyecto
+
+ContFactu es y será siempre **gratuito y libre**. No hay versión de pago ni funciones bloqueadas.
+Si le resulta útil y quiere mostrar su apoyo, puede hacer un donativo voluntario en
+[Ko-fi (LomoXSoft)](https://ko-fi.com/lomoxsoft). También se agradece mucho avisar de errores o compartir el programa.
 
 ## Licencia
 
