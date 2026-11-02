@@ -29,6 +29,7 @@ historial de git no forma parte de este repositorio.
   Una importación nunca se mezcla con una empresa creada en ContFactu que tenga el mismo código: avisa y la omite.
 
 ### Cambiado
+- Capturas de demostración renovadas, con un logotipo inventado completo y una ruta de datos típica de Windows. Nueva prueba que confirma que el logotipo se encaja en la factura sin recortarse ni deformarse.
 - La primera pantalla dice «Bienvenido a ContFactu». Los textos que se dirigen al usuario usan el masculino genérico.
 - **Código publicado como software libre** bajo la licencia GPL-3.0-or-later (archivo LICENSE; aviso en «Acerca de»).
   7-Zip ya no está en el repositorio: `construir.bat` lo descarga de 7-zip.org y comprueba su SHA-256.

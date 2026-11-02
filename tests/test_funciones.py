@@ -1,6 +1,6 @@
 """Tests de las funciones de la fase 2: editar/borrar, rectificativas, cobros y recibos, pasar a factura,
 libros de IVA y empaquetado. Usan una empresa ficticia en una base temporal (sin datos reales)."""
-import io, os, csv, importlib
+import io, os, csv, importlib, shutil
 from decimal import Decimal as D
 from pathlib import Path
 import pytest
@@ -698,3 +698,22 @@ def test_datos_nunca_junto_al_programa(monkeypatch, tmp_path):
     monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
     assert db.data_dir() == tmp_path / "Roaming" / "ContFactu"
     assert ventana.carpeta_webview().startswith(str(tmp_path / "Roaming" / "ContFactu"))
+
+
+# ---------------------------------------------------------------- logotipo: se encaja sin recortar ni deformar
+@pytest.mark.skipif(not shutil.which("pdftoppm"), reason="sin pdftoppm (poppler)")
+@pytest.mark.parametrize("w,h", [(1200, 100), (100, 1200), (400, 400), (3000, 2000)])
+def test_logo_encaja_sin_recortar(tmp_path, w, h):
+    import io, subprocess
+    from PIL import Image, ImageChops
+    from app.fmt_pdf import render_pdf_defecto
+    b = io.BytesIO(); Image.new("RGB", (w, h), (255, 0, 0)).save(b, "PNG"); b.seek(0)
+    pdf = render_pdf_defecto({"nombre": "Demo", "nif": "B12345674"},
+                             {"tipo": "F", "numero": "260001", "fecha": "2026-11-02", "total": "0"}, [], [], logo=b)
+    (tmp_path / "a.pdf").write_bytes(pdf)
+    subprocess.run(["pdftoppm", "-r", "144", "-png", "-singlefile", str(tmp_path / "a.pdf"), str(tmp_path / "a")], check=True)
+    r, g, _ = Image.open(tmp_path / "a.png").convert("RGB").split()
+    caja = ImageChops.multiply(Image.eval(r, lambda v: 255 if v > 200 else 0), Image.eval(g, lambda v: 255 if v < 60 else 0)).getbbox()
+    ancho, alto = caja[2] - caja[0], caja[3] - caja[1]
+    assert ancho <= 45 / 25.4 * 144 + 2 and alto <= 22 / 25.4 * 144 + 2          # cabe en 45 × 22 mm
+    assert abs(ancho / alto - w / h) / (w / h) < 0.12                           # misma proporción: ni recorte ni deformación
