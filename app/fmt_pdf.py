@@ -177,6 +177,10 @@ class Lienzo:
             ancho = max((stringWidth(str(t), font, size) for t in lineas_txt), default=0)
             if ancho > w > 0:
                 size = max(size * w / ancho * 0.98, 5)
+        alto = float(o.get("TamY") or 0) * mm
+        if len(lineas_txt) > 3 and alto > 0 and len(lineas_txt) * size * 1.15 > alto + size * 0.5:
+            # más tipos de IVA de los que caben en la caja del diseño (FactuCont preveía 3): letra más pequeña, no se corta nada
+            size = max(min(size, (alto + size * 0.5) / (len(lineas_txt) * 1.15)), 5)
         c.setFillColor(_color(o.get("FColor"), 0)); c.setFont(font, size)
         lh = size * 1.15
         y = self.Y(y0 + o["PosY"]) - size * 0.95

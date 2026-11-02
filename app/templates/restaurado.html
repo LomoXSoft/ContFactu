@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block c %}
+<div class="card okmsg"><h2>✔ Copia restaurada</h2>
+<p>Ya están los datos de la copia ({{info.empresas}} empresa(s), {{info.documentos}} documentos).</p>
+{% if previa %}<p>Los datos que había antes se han guardado en:<br><b>{{previa}}</b><br>
+<span class="muted">Si necesita volver atrás, restaure ese archivo desde «Copias de seguridad».</span></p>{% endif %}
+<p><a class="btn" href="/">{{ico('listados')}}Ir a las empresas</a></p></div>
+{% endblock %}

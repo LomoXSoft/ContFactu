@@ -79,6 +79,15 @@ def bienvenida(request: Request):
 # ------------------------------------------------------------------------------------------------ empresas desde cero
 from . import altas
 from .db import data_dir
+tpl.env.globals["tabla_tipos"] = altas.tabla_tipos
+
+def _x_empresa_error(f, eid=None):
+    """Lo que el usuario escribió, para volver a mostrar el formulario con el error."""
+    x = {k: f.get(k) for k in altas.CAMPOS_EMPRESA}
+    x["_filas"] = list(zip(f.getlist("tipo_iva"), f.getlist("tipo_re")))
+    if eid:
+        x["id"] = eid
+    return x
 
 def _logo_ruta(e):
     if e and e.get("logo"):
@@ -111,13 +120,16 @@ async def _guardar_logo(con, eid, subido):
     altas.poner_logo(con, eid, nombre)
 
 def _form_empresa(f):
-    return {k: f.get(k) for k in altas.CAMPOS_EMPRESA}
+    d = {k: f.get(k) for k in altas.CAMPOS_EMPRESA}
+    if f.getlist("tipo_iva"):   # tabla editable de tipos de IVA y recargo de equivalencia
+        d["ivas"], d["re_tasas"] = altas.tipos_desde_tabla(f.getlist("tipo_iva"), f.getlist("tipo_re"))
+    return d
 
 @app.get("/empresas/nueva", response_class=HTMLResponse)
 def empresa_nueva(request: Request):
     con = db()
-    e = {"codigo": altas.siguiente_codigo_empresa(con), "ivas": altas.IVAS_DEFECTO.replace(",", ", "), "contador_inicial": 1,
-         "serie_defecto": ""}
+    e = {"codigo": altas.siguiente_codigo_empresa(con), "ivas": altas.IVAS_DEFECTO, "re_tasas": repo.RE_DEFECTO,
+         "contador_inicial": 1, "serie_defecto": ""}
     return tpl.TemplateResponse(request, "empresa_form.html", {"x": e, "nueva": True, "anio": repo.hoy()[2:4],
                                                                "hay": bool(repo.empresas(con))})
 
@@ -130,7 +142,7 @@ async def empresa_crear(request: Request):
             eid = altas.crear_empresa(con, _form_empresa(f))
             await _guardar_logo(con, eid, f.get("logo"))
     except ErrorNegocio as ex:
-        x = _form_empresa(f)
+        x = _x_empresa_error(f)
         return tpl.TemplateResponse(request, "empresa_form.html", {"x": x, "nueva": True, "error": str(ex), "anio": repo.hoy()[2:4],
                                                                    "hay": bool(repo.empresas(con))}, status_code=400)
     return RedirectResponse(f"/e/{eid}/documentos?tipo=F&ok=empresa", status_code=303)
@@ -138,7 +150,7 @@ async def empresa_crear(request: Request):
 @app.get("/e/{eid}/empresa", response_class=HTMLResponse)
 def empresa_ver(request: Request, eid: int, ok: str = ""):
     con = db(); e = _emp(con, eid)
-    x = dict(e, ivas=", ".join(altas.ivas_de(e)))
+    x = dict(e)
     tiene_f = bool(con.execute("SELECT 1 FROM documentos WHERE empresa_id=? AND tipo='F'", (eid,)).fetchone())
     return tpl.TemplateResponse(request, "empresa_form.html", {"e": e, "x": x, "nueva": False, "ok": ok, "tiene_facturas": tiene_f,
                                                                "anio": repo.hoy()[2:4], "logo": _logo_ruta(e) is not None})
@@ -154,7 +166,7 @@ async def empresa_guardar(request: Request, eid: int):
             if f.get("quitar_logo") == "1":
                 altas.poner_logo(con, eid, None)
     except ErrorNegocio as ex:
-        return tpl.TemplateResponse(request, "empresa_form.html", {"e": e, "x": dict(_form_empresa(f), id=eid), "nueva": False,
+        return tpl.TemplateResponse(request, "empresa_form.html", {"e": e, "x": _x_empresa_error(f, eid), "nueva": False,
                                     "error": str(ex), "anio": repo.hoy()[2:4], "logo": _logo_ruta(e) is not None}, status_code=400)
     return RedirectResponse(f"/e/{eid}/empresa?ok=1", status_code=303)
 
@@ -257,11 +269,10 @@ def detalle(request: Request, did: int, ok: str = ""):
         "e": e, "d": d, "lineas": ls, "plazos": ps, "tot": totales_cabecera(d), "aviso": [v[0] for v in ver],
         "titulo": titulo_documento(d), "cobros": repo.cobros(con, did), "estado": repo.estado_cobro(d), "rel": rel,
         "ref_rect": repo.lineas_referencia_rectificativa(con, d), "hoy": repo.hoy(), "ok": ok,
-        "recibos": repo.recibos_documento(con, did)})
+        "recibos": repo.recibos_documento(con, did), "envios": correo.envios(con, did)})
 
-@app.get("/d/{did}/pdf")
-def pdf(did: int):
-    con = db(); d, ls, ps = _doc(con, did)
+def _pdf_documento(con, d, ls, ps):
+    """(bytes del PDF, nombre de archivo) con el diseño importado de FactuCont o, si no hay, el diseño por defecto."""
     e = _emp(con, d["empresa_id"])
     fmt = repo.formato(con, d["empresa_id"], repo.CLASE_FORMATO.get(d["tipo"], "factura"))
     previas = repo.lineas_referencia_rectificativa(con, d)
@@ -271,8 +282,89 @@ def pdf(did: int):
         from .fmt_pdf import render_pdf_defecto
         logo = _logo_ruta(e)
         data = render_pdf_defecto(e, d, ls, ps, logo=str(logo) if logo else None, lineas_previas=previas)
-    nombre = f"{titulo_documento(d).lower().replace(' ', '_')}_{repo.num_visible(d)}.pdf"
+    return data, f"{titulo_documento(d).lower().replace(' ', '_')}_{repo.num_visible(d)}.pdf"
+
+@app.get("/d/{did}/pdf")
+def pdf(did: int):
+    con = db(); d, ls, ps = _doc(con, did)
+    data, nombre = _pdf_documento(con, d, ls, ps)
     return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{nombre}"'})
+
+# ------------------------------------------------------------------------------------------------ correo electrónico
+from . import correo
+
+def _ctx_correo(con, e, c, **extra):
+    return dict({"e": e, "c": c, "SEGURIDADES": correo.SEGURIDADES, "MARCADORES": correo.MARCADORES,
+                 "hay_contrasena": bool(correo.leer_contrasena(e["id"]))}, **extra)
+
+@app.get("/e/{eid}/correo", response_class=HTMLResponse)
+def correo_ver(request: Request, eid: int, ok: str = ""):
+    con = db(); e = _emp(con, eid)
+    return tpl.TemplateResponse(request, "correo_config.html", _ctx_correo(con, e, correo.config(con, eid), ok=ok))
+
+@app.post("/e/{eid}/correo", response_class=HTMLResponse)
+async def correo_guardar(request: Request, eid: int):
+    f = await request.form()
+    con = db(); e = _emp(con, eid)
+    datos = {k: f.get(k) for k in correo.CAMPOS}
+    try:
+        with con:
+            correo.guardar_config(con, eid, datos)
+        if f.get("borrar_contrasena") == "1":
+            correo.guardar_contrasena(eid, "")
+        elif f.get("contrasena"):
+            correo.guardar_contrasena(eid, f.get("contrasena"))
+        if f.get("accion") == "probar":
+            c = correo.config(con, eid)
+            correo.probar(c, correo.leer_contrasena(eid))
+            return tpl.TemplateResponse(request, "correo_config.html", _ctx_correo(con, e, c, prueba_ok=True))
+    except correo.ErrorCorreo as ex:
+        c = dict(correo.config(con, eid), **{k: v for k, v in datos.items() if v is not None})
+        return tpl.TemplateResponse(request, "correo_config.html", _ctx_correo(con, e, c, error=str(ex)),
+                                    status_code=200 if f.get("accion") == "probar" else 400)
+    return RedirectResponse(f"/e/{eid}/correo?ok=1", status_code=303)
+
+def _ctx_envio(con, d, ls, ps, **extra):
+    e = _emp(con, d["empresa_id"])
+    c = correo.config(con, e["id"])
+    v = correo.valores_documento(e, d, ps, titulo_documento(d), repo.num_visible(d))
+    ctx = {"e": e, "d": d, "c": c, "titulo": titulo_documento(d), "envios": correo.envios(con, d["id"]),
+           "para": correo.correo_cliente(con, d), "copia": c.get("copia") or "",
+           "asunto": correo.rellenar(c["asunto"], v), "cuerpo": correo.rellenar(c["cuerpo"], v),
+           "adjunto": f"{titulo_documento(d).lower().replace(' ', '_')}_{repo.num_visible(d)}.pdf",
+           "hay_contrasena": bool(correo.leer_contrasena(e["id"])) or not c.get("usuario")}
+    ctx.update(extra)
+    return ctx
+
+@app.get("/d/{did}/enviar", response_class=HTMLResponse)
+def enviar_vista(request: Request, did: int):
+    """Vista previa del correo. No se envía nada hasta pulsar «Enviar» en esta pantalla."""
+    con = db(); d, ls, ps = _doc(con, did)
+    return tpl.TemplateResponse(request, "enviar.html", _ctx_envio(con, d, ls, ps))
+
+@app.post("/d/{did}/enviar", response_class=HTMLResponse)
+async def enviar_documento(request: Request, did: int):
+    f = await request.form()
+    con = db(); d, ls, ps = _doc(con, did)
+    para, copia = (f.get("para") or "").strip(), (f.get("copia") or "").strip()
+    asunto, cuerpo = (f.get("asunto") or "").strip(), (f.get("cuerpo") or "").replace("\r\n", "\n")
+    if f.get("confirmar") != "1":
+        raise ErrorNegocio("Para enviar el correo hay que pulsar «Enviar» en la vista previa.")
+    c = correo.config(con, d["empresa_id"])
+    data, nombre = _pdf_documento(con, d, ls, ps)
+    try:
+        if not asunto:
+            raise correo.ErrorCorreo("El asunto está vacío.")
+        msg = correo.construir(c, para, copia, asunto, cuerpo, nombre, data)
+        correo.enviar(c, correo.leer_contrasena(d["empresa_id"]), msg)
+    except correo.ErrorCorreo as ex:
+        with con:
+            correo.registrar(con, did, para, copia, asunto, nombre, error=str(ex))
+        return tpl.TemplateResponse(request, "enviar.html", _ctx_envio(con, d, ls, ps, para=para, copia=copia, asunto=asunto,
+                                    cuerpo=cuerpo, error=str(ex)), status_code=400)
+    with con:
+        correo.registrar(con, did, para, copia, asunto, nombre)
+    return RedirectResponse(f"/d/{did}?ok=enviado", status_code=303)
 
 # ------------------------------------------------------------------------------------------------ alta / edición
 def _form_contexto(con, e, tipo, d=None, lineas=None, aviso_legal=None, pre=None):
@@ -287,7 +379,8 @@ def _form_contexto(con, e, tipo, d=None, lineas=None, aviso_legal=None, pre=None
                                          "ciudad_f", "nif", "forma_pago", "recargo", "retencion")} for c in terceros], ensure_ascii=False),
             "terceros": terceros, "lineas_json": json.dumps(ls, ensure_ascii=False), "siguiente": sig,
             "con_re": d is not None and repo._con_re(d), "aviso_legal": aviso_legal,
-            "serie_defecto": serie, "ivas": altas.ivas_de(e)}
+            "serie_defecto": serie, "ivas": altas.ivas_de(e),
+            "tasas_re_json": json.dumps({k: float(v) for k, v in altas.tasas_re_de(e).items()})}
 
 @app.get("/e/{eid}/nueva")
 def nueva_compat(eid: int, cliente: str = ""):
@@ -332,7 +425,7 @@ async def _leer_form(request):
         coment = not precio
         lineas.append({"codigo": f.get(f"codigo_{i}"), "concepto": concepto, "cantidad": _n(f.get(f"cantidad_{i}"), "1"),
                        "precio": "" if coment else _n(precio), "descuento": _n(f.get(f"descuento_{i}")),
-                       "iva": _n(f.get(f"iva_{i}"), "21"), "comentario": coment})
+                       "iva": (f.get(f"iva_{i}") or "").strip() or "21", "comentario": coment})
     datos = {k: (f.get(k) or "").strip() or None for k in ("fecha", "serie", "nombre_f", "direccion_f", "ciudad_f", "nif", "forma_pago",
                                                           "cliente_codigo", "num_factura_proveedor", "domiciliacion", "ccc")}
     datos["descuento"] = _n(f.get("descuento"))
@@ -472,6 +565,32 @@ def libros_xlsx(eid: int, anio: str, t: str = ""):
     return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
+from . import excel
+
+def _xlsx(data, nombre):
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+@app.get("/e/{eid}/documentos.xlsx")
+def documentos_xlsx(eid: int, tipo: str = "F", anio: str = "", q: str = ""):
+    con = db(); e = _emp(con, eid)
+    if tipo not in NOMBRES_TIPO:
+        raise HTTPException(404)
+    nombre = {"F": "facturas", "P": "presupuestos", "A": "albaranes", "G": "gastos", "M": "tiques", "D": "pedidos"}[tipo]
+    return _xlsx(excel.documentos(con, eid, tipo, anio, q), f"{nombre}_{e['codigo']}{'_' + anio if anio and anio != 'todos' else ''}.xlsx")
+
+@app.get("/e/{eid}/pendientes.xlsx")
+def pendientes_xlsx(eid: int):
+    con = db(); e = _emp(con, eid)
+    return _xlsx(excel.pendientes(con, eid), f"cobros_pendientes_{e['codigo']}_{repo.hoy()}.xlsx")
+
+@app.get("/e/{eid}/{tabla}.xlsx")
+def terceros_xlsx(eid: int, tabla: str):
+    if tabla not in ("clientes", "proveedores"):
+        raise HTTPException(404)
+    con = db(); e = _emp(con, eid)
+    return _xlsx(excel.terceros(con, eid, tabla), f"{tabla}_{e['codigo']}.xlsx")
+
 @app.get("/e/{eid}/libro_{clase}.csv")
 def libro_csv(eid: int, clase: str, anio: str, t: str = ""):
     if clase not in ("emitidas", "recibidas"):
@@ -530,6 +649,131 @@ async def importar(request: Request):
         for t in (tmp, tmp_subida):
             if t: shutil.rmtree(t, ignore_errors=True)
     return tpl.TemplateResponse(request, "asistente.html", {"ruta": mostrado, "datos": str(db_path()), "hay": True, "resultado": res})
+
+# ------------------------------------------------------------------------------------------------ avisos al arrancar
+# «Sesión» = mientras ContFactu está abierto (un proceso). Lo que se oculta vuelve a salir la próxima vez que se abra.
+SESION = {"alertas_ocultas": set(), "copia_oculta": False, "restaurar": {}}
+
+def avisos(request, e=None):
+    """Avisos de la parte superior: cobros vencidos/próximos de la empresa y recordatorio de copia de seguridad."""
+    res = {}
+    try:
+        con = db()
+        if e and e.get("id") not in SESION["alertas_ocultas"] and not request.url.path.startswith(f"/e/{e['id']}/pendientes"):
+            a = repo.alertas_cobro(con, e["id"])
+            if a["hay"]:
+                res["cobros"] = a
+        if not SESION["copia_oculta"] and not request.url.path.startswith("/copias") and copias.necesita_aviso(con):
+            res["copia"] = {"dias": copias.dias_desde_ultima(con), "plazo": copias.dias_aviso(con)}
+    except Exception:   # un aviso nunca debe impedir trabajar
+        pass
+    return res
+
+tpl.env.globals["avisos_inicio"] = avisos
+
+@app.post("/e/{eid}/alertas/ocultar")
+async def alertas_ocultar(request: Request, eid: int):
+    SESION["alertas_ocultas"].add(eid)
+    return RedirectResponse(request.headers.get("referer") or f"/e/{eid}/documentos?tipo=F", status_code=303)
+
+@app.post("/copias/recordar-luego")
+async def copia_recordar_luego(request: Request):
+    SESION["copia_oculta"] = True
+    return RedirectResponse(request.headers.get("referer") or "/", status_code=303)
+
+# ------------------------------------------------------------------------------------------------ copias de seguridad
+from . import copias
+from .db import ajuste, poner_ajuste
+
+def _ctx_copias(con, **extra):
+    auto = copias.carpeta_automaticas()
+    lista = sorted(auto.glob("ContFactu-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True) if auto.exists() else []
+    return dict({"carpeta": ajuste(con, "copia_carpeta") or str(copias.carpeta_defecto()), "ultima": ajuste(con, "copia_ultima"),
+                 "ultima_archivo": ajuste(con, "copia_ultima_archivo"), "dias": copias.dias_aviso(con),
+                 "automaticas": [{"nombre": p.name, "ruta": str(p), "fecha": datetime.datetime.fromtimestamp(p.stat().st_mtime),
+                                  "tam": p.stat().st_size} for p in lista],
+                 "carpeta_auto": str(auto), "datos": str(data_dir()), "hay": bool(repo.empresas(con))}, **extra)
+
+@app.get("/copias", response_class=HTMLResponse)
+def copias_ver(request: Request, ok: str = "", archivo: str = ""):
+    con = db()
+    return tpl.TemplateResponse(request, "copias.html", _ctx_copias(con, ok=ok, archivo=archivo))
+
+@app.post("/copias/crear", response_class=HTMLResponse)
+async def copias_crear(request: Request):
+    f = await request.form()
+    con = db()
+    try:
+        ruta = copias.crear_copia(con, f.get("carpeta"))
+    except copias.ErrorCopia as ex:
+        return tpl.TemplateResponse(request, "copias.html", _ctx_copias(con, error=str(ex), carpeta=f.get("carpeta") or ""), status_code=400)
+    SESION["copia_oculta"] = False
+    from urllib.parse import quote
+    return RedirectResponse(f"/copias?ok=copia&archivo={quote(str(ruta))}", status_code=303)
+
+@app.post("/copias/ajustes")
+async def copias_ajustes(request: Request):
+    f = await request.form()
+    con = db()
+    try:
+        n = int(f.get("dias") or 0); assert 0 <= n <= 365
+    except (ValueError, AssertionError):
+        raise ErrorNegocio("Los días del recordatorio deben ser un número entre 0 (no recordar) y 365.")
+    with con:
+        poner_ajuste(con, "copia_dias", n)
+        if (f.get("carpeta") or "").strip():
+            poner_ajuste(con, "copia_carpeta", f.get("carpeta").strip().strip('"'))
+    return RedirectResponse("/copias?ok=ajustes", status_code=303)
+
+@app.post("/copias/restaurar/revisar", response_class=HTMLResponse)
+async def copias_revisar(request: Request):
+    """Primer paso de la restauración: comprobar el .zip y enseñar qué contiene. Todavía no se toca nada."""
+    import secrets, shutil, tempfile
+    f = await request.form()
+    con = db()
+    subido = f.get("archivo")
+    ruta = (f.get("ruta") or "").strip().strip('"')
+    if subido is not None and getattr(subido, "filename", ""):
+        if not subido.filename.lower().endswith(".zip"):
+            return tpl.TemplateResponse(request, "copias.html", _ctx_copias(con, error="La copia debe ser un archivo .zip."), status_code=400)
+        tmp = tempfile.mkdtemp(prefix="contfactu_subida_")
+        ruta = os.path.join(tmp, os.path.basename(subido.filename))
+        with open(ruta, "wb") as out:
+            shutil.copyfileobj(subido.file, out)
+        mostrado = subido.filename
+    else:
+        mostrado = ruta
+    try:
+        if not ruta:
+            raise copias.ErrorCopia("Elija el archivo .zip de la copia que quiere restaurar.")
+        info = copias.leer_copia(ruta)
+    except copias.ErrorCopia as ex:
+        return tpl.TemplateResponse(request, "copias.html", _ctx_copias(con, error=str(ex)), status_code=400)
+    token = secrets.token_urlsafe(16)
+    SESION["restaurar"][token] = ruta
+    return tpl.TemplateResponse(request, "restaurar.html", {"info": info, "token": token, "mostrado": mostrado,
+                                                             "actual": copias._recuento(db_path()) if db_path().exists() else None,
+                                                             "hay": bool(repo.empresas(con))})
+
+@app.post("/copias/restaurar", response_class=HTMLResponse)
+async def copias_restaurar(request: Request):
+    f = await request.form()
+    ruta = SESION["restaurar"].get(f.get("token") or "")
+    if not ruta:
+        raise ErrorNegocio("La restauración ha caducado: vuelva a elegir la copia.")
+    if f.get("confirmar") != "1":
+        raise ErrorNegocio("Para restaurar hay que marcar la casilla de confirmación.")
+    try:
+        info, previa = copias.restaurar(ruta)
+    except copias.ErrorCopia as ex:
+        raise ErrorNegocio(str(ex))
+    SESION["restaurar"].pop(f.get("token"), None)
+    if os.path.basename(os.path.dirname(ruta)).startswith("contfactu_subida_"):
+        import shutil
+        shutil.rmtree(os.path.dirname(ruta), ignore_errors=True)
+    SESION["alertas_ocultas"].clear()
+    return tpl.TemplateResponse(request, "restaurado.html", {"info": info, "previa": str(previa) if previa else None,
+                                                             "hay": bool(repo.empresas(db()))})
 
 @app.get("/salud")
 def salud():

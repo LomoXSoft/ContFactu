@@ -316,9 +316,12 @@ def test_exportar_csv_y_xlsx(con):
     filas = list(csv.reader(io.StringIO(data.decode("utf-8-sig")), delimiter=";"))
     assert filas[0][0] == "Fecha expedición" and filas[1][0] == "15/01/2026" and "100,00" in filas[1]
     wb = load_workbook(io.BytesIO(repo.libros_xlsx(con, 1, "2026", "1")))
-    assert wb.sheetnames == ["Emitidas", "Recibidas", "Resumen 303"]
+    assert wb.sheetnames == ["Emitidas", "Recibidas", "Resumen por tipo", "Resumen 303"]
     ws = wb["Emitidas"]
-    assert ws["A2"].value == "Fecha expedición" and ws.cell(3, 8).value == 100.0
+    cab = [c.value for c in ws[2]]
+    assert cab[:4] == ["Ejercicio", "Periodo", "Tipo de factura", "Fecha expedición"]
+    assert ws.cell(3, cab.index("Base imponible") + 1).value == 100
+    assert ws.cell(3, cab.index("Fecha expedición") + 1).number_format == "DD/MM/YYYY"
     assert any(r[0].value == "46" for r in wb["Resumen 303"].iter_rows())
 
 # ------------------------------------------------------------------------------------- interfaz web
@@ -477,15 +480,15 @@ def test_origen_rar_con_fc5_en_subcarpeta():
 # ---------------------------------------------------------------- 0.0.2: versión, ventana propia, iconos, splash
 def test_version_unica_y_visible(cliente_web):
     import app
-    assert app.__version__ == "0.0.3"
+    assert app.__version__ == "0.0.4"
     h = cliente_web.get("/acerca").text
-    assert "ContFactu 0.0.3" in h and "LomoXSoft" in h
-    assert cliente_web.get("/salud").text == "ContFactu OK 0.0.3"
-    assert "<title>ContFactu 0.0.3</title>" in cliente_web.get("/asistente").text
+    assert "ContFactu 0.0.4" in h and "LomoXSoft" in h
+    assert cliente_web.get("/salud").text == "ContFactu OK 0.0.4"
+    assert "<title>ContFactu 0.0.4</title>" in cliente_web.get("/asistente").text
 
 def test_changelog_tiene_versiones():
     t = (Path(__file__).parent.parent / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "0.0.1" in t and "0.0.2" in t and "0.0.3" in t
+    assert "0.0.1" in t and "0.0.2" in t and "0.0.3" in t and "0.0.4" in t
 
 def test_iconos_svg_validos_y_en_menu(cliente_web, con):
     import xml.etree.ElementTree as ET
@@ -562,7 +565,7 @@ def test_main_usa_navegador_si_falla_la_ventana(monkeypatch):
     monkeypatch.setattr(V, "webview2_instalado", lambda: True)
     monkeypatch.setattr(V, "abrir_ventana", ventana_ok)
     M.main()                                         # vuelve al "cerrar la ventana"
-    assert estado["titulo"] == "ContFactu 0.0.3" and abiertos == []
+    assert estado["titulo"] == "ContFactu 0.0.4" and abiertos == []
     import time, urllib.request
     time.sleep(0.3)
     with pytest.raises(Exception):                   # servidor detenido al cerrar la ventana

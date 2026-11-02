@@ -29,7 +29,7 @@ completa; la original deja de estar pendiente de cobro.</div>
 <label>Banco (domiciliación)<input name="domiciliacion" value="{{d.domiciliacion or ''}}"></label><label>Cuenta (IBAN/CCC)<input name="ccc" value="{{d.ccc or ''}}"></label></div>
 <h3 style="margin-top:1rem">Líneas <span class="muted" style="font-size:.85rem">(una línea sin precio se imprime como comentario)</span></h3>
 <table id="t"><tr><th>Código</th><th style="width:44%">Concepto</th><th>Cant.</th><th>Precio</th><th>Dto.%</th><th>IVA%</th><th class="n">Importe</th><th></th></tr></table>
-<datalist id="ivas">{% for v in ivas or [] %}<option value="{{v}}">{% endfor %}</datalist><input type="hidden" name="n_lineas" id="n" value="0"><p><button type="button" class="btn sec" onclick="add({})">{{ico('nuevo')}}Añadir línea</button></p>
+<datalist id="ivas">{% for v in ivas or [] %}<option value="{{v|pct}}">{% endfor %}</datalist><input type="hidden" name="n_lineas" id="n" value="0"><p><button type="button" class="btn sec" onclick="add({})">{{ico('nuevo')}}Añadir línea</button></p>
 <div style="text-align:right;font-size:1.05rem" id="resumen"></div>
 <p class="muted">Los totales definitivos los recalcula el programa al guardar (redondeo por tipo de IVA, como FactuCont).</p>
 <p class="acciones"><button class="btn">{{ico('rectificar' if rectifica else 'guardar')}}{{'Crear rectificativa' if rectifica else 'Guardar'}}</button>
@@ -38,17 +38,18 @@ completa; la original deja de estar pendiente de cobro.</div>
 const TER={{terceros_json|safe}}, LIN={{lineas_json|safe}}, IVA_DEF={{ (ivas[0] if ivas else '21')|tojson }};
 const n=document.getElementById('n'), t=document.getElementById('t');
 function num(v){v=(v||'').trim();if(v.includes(','))v=v.replace(/\./g,'').replace(',','.');return parseFloat(v)||0}
+function pc(v){return (v??'').toString().replace('.',',')}
 function fmt(x){return x.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function add(l){const i=+n.value;const r=t.insertRow();const c=l.comentario;
 r.innerHTML=`<td><input name="codigo_${i}" size=6 value="${esc(l.codigo)}"></td><td><input name="concepto_${i}" style="width:100%" value="${esc(l.concepto)}"></td>
 <td><input name="cantidad_${i}" size=5 value="${c?'':esc(l.cantidad||'1')}" oninput="calc()"></td><td><input name="precio_${i}" size=8 value="${c?'':esc(l.precio)}" oninput="calc()"></td>
-<td><input name="descuento_${i}" size=3 value="${c||l.descuento=='0'?'':esc(l.descuento)}" oninput="calc()"></td><td><input name="iva_${i}" size=3 list="ivas" value="${c?'':esc(l.iva||IVA_DEF)}" oninput="calc()"></td>
+<td><input name="descuento_${i}" size=3 value="${c||l.descuento=='0'?'':esc(l.descuento)}" oninput="calc()"></td><td><input name="iva_${i}" size=4 list="ivas" inputmode="decimal" title="Cualquier tipo entre 0 y 100 (máx. 2 decimales)" pattern="\\s*(100([.,]0{1,2})?|\\d{1,2}([.,]\\d{1,2})?)\\s*%?\\s*" value="${c?'':esc(pc(l.iva||IVA_DEF))}" oninput="calc()"></td>
 <td class="n" id="imp_${i}"></td><td><button type="button" class="btn sec peq" title="Quitar línea" onclick="this.closest('tr').remove();calc()">✕</button></td>`;n.value=i+1;calc()}
 function elegir(nombre){const c=TER.find(x=>x.nombre===nombre);if(!c)return;
 for(const [k,src] of [['nombre_f',c.nombre_f||c.nombre],['direccion_f',c.direccion_f||c.direccion],['ciudad_f',c.ciudad_f||c.ciudad],['nif',c.nif],['forma_pago',c.forma_pago]])document.getElementById(k).value=src||'';
 document.getElementById('cliente_codigo').value=c.codigo||'';document.getElementById('re').value=c.recargo?'1':'0';calc()}
-const RE={'21':5.2,'10':1.4,'5':0.62,'4':0.5};
+const RE={{tasas_re_json|safe}};
 function calc(){const g={};const inc=document.getElementById('iva_incluido').value=='1';
 for(let i=0;i<+n.value;i++){const p=document.querySelector(`[name=precio_${i}]`);if(!p)continue;const cel=document.getElementById('imp_'+i);
 if(!p.value.trim()){cel.textContent='';continue}

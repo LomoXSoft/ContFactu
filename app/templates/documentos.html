@@ -4,6 +4,7 @@
 <option value="todos" {{'selected' if anio=='todos'}}>Todos los años</option></select>
 <input name="q" value="{{q}}" placeholder="Nombre, número o NIF"><button class="btn">{{ico('buscar')}}Filtrar</button>
 <a class="btn sec" href="/e/{{e.id}}/nuevo/{{tipo}}">{{ico('nuevo')}}{{'Nuevo' if tipo in 'GPA' else 'Nueva'}} {{TIPOS[tipo]|lower}}</a>
+<a class="btn sec" href="/e/{{e.id}}/documentos.xlsx?tipo={{tipo}}&anio={{anio}}&q={{q|urlencode}}" title="Exportar a Excel la lista tal como está filtrada">{{ico('excel')}}Excel</a>
 {% if tipo in 'AP' %}<a class="btn sec" href="/e/{{e.id}}/facturar?tipo={{tipo}}">{{ico('facturar')}}Pasar a factura…</a>{% endif %}</form></div>
 {% if ok == 'empresa' %}<div class="card okmsg">✔ Empresa «{{e.nombre}}» creada. Ya puede dar de alta
 <a href="/e/{{e.id}}/clientes/nuevo">clientes</a> y <a href="/e/{{e.id}}/proveedores/nuevo">proveedores</a>, o emitir la

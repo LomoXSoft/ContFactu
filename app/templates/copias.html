@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% block c %}
+{% if ok == 'copia' %}<div class="card okmsg">✔ Copia de seguridad creada:<br><b>{{archivo}}</b><br>
+<span class="muted">Guárdela también fuera de este ordenador (un pendrive, un disco externo o la nube).</span></div>{% endif %}
+{% if ok == 'ajustes' %}<div class="card okmsg">✔ Ajustes guardados.</div>{% endif %}
+{% if error %}<div class="card aviso error">{{error}}</div>{% endif %}
+<div class="card"><h2>{{ico('copia',26)}}Copias de seguridad</h2>
+<p>Una copia es un archivo <b>.zip</b> con fecha y hora que contiene todas las empresas, documentos, clientes, proveedores, cobros,
+diseños, logotipos y ajustes. {% if ultima %}Última copia: <b>{{ultima[:10]|fecha}} a las {{ultima[11:16]}}</b>{% if ultima_archivo %}
+<br><span class="muted">{{ultima_archivo}}</span>{% endif %}{% else %}<b>Todavía no se ha hecho ninguna.</b>{% endif %}</p>
+<form method="post" action="/copias/crear" class="acciones">
+<label style="flex:1;min-width:320px">Carpeta donde guardarla<input name="carpeta" id="carpeta" value="{{carpeta}}"></label>
+<button type="button" class="btn sec" id="elegir" style="display:none;margin-top:1rem" onclick="window.pywebview.api.elegir_carpeta(document.getElementById('carpeta').value).then(r=>{if(r&&r.ok)document.getElementById('carpeta').value=r.ruta;else if(r&&r.mensaje)alert(r.mensaje)})">Elegir carpeta…</button>
+<button class="btn" style="margin-top:1rem">{{ico('copia')}}Hacer copia ahora</button></form>
+<p class="muted" style="font-size:.86rem">Se recuerda la última carpeta usada. Las contraseñas del correo no van en la copia (están en el Administrador de credenciales de Windows).</p></div>
+
+<div class="card"><h3>Recordatorio</h3>
+<form method="post" action="/copias/ajustes" class="acciones">
+<label>Avisar si no hay copia en los últimos<input name="dias" type="number" min="0" max="365" value="{{dias}}" style="width:6rem"></label><span style="margin-top:1rem">días <span class="muted">(0 = no avisar)</span></span>
+<button class="btn sec" style="margin-top:1rem">{{ico('guardar')}}Guardar</button></form></div>
+
+<div class="card"><h3>{{ico('restaurar',22)}}Restaurar una copia</h3>
+<div class="aviso">Restaurar <b>sustituye todos los datos actuales</b> por los de la copia. Antes de hacerlo, ContFactu guarda automáticamente
+una copia de los datos actuales en <span class="muted">{{carpeta_auto}}</span>, por si hubiera que deshacerlo. En el paso siguiente verá lo que
+contiene la copia y tendrá que confirmarlo.</div>
+<form method="post" action="/copias/restaurar/revisar" enctype="multipart/form-data" class="acciones" style="margin-top:.7rem">
+<label style="flex:1;min-width:280px">Archivo de la copia (.zip)<input type="file" name="archivo" accept=".zip"></label>
+<label style="flex:1;min-width:280px">…o ruta completa del archivo<input name="ruta" id="ruta" placeholder="{{carpeta}}\ContFactu-copia-….zip"></label>
+<button type="button" class="btn sec" id="elegirzip" style="display:none;margin-top:1rem" onclick="window.pywebview.api.elegir_zip().then(r=>{if(r&&r.ok)document.getElementById('ruta').value=r.ruta})">Buscar…</button>
+<button class="btn sec" style="margin-top:1rem">{{ico('ver')}}Revisar la copia…</button></form></div>
+
+<div class="card"><h3>Copias automáticas</h3>
+<p class="muted" style="margin-top:0">ContFactu las hace solo: la primera vez que se abre una versión nueva (antes de poner al día la base de datos) y antes de cada
+restauración. Se conservan las {{20}} más recientes en <b>{{carpeta_auto}}</b>.</p>
+<table><tr><th>Archivo</th><th>Fecha</th><th class="n">Tamaño</th><th></th></tr>
+{% for a in automaticas %}<tr><td>{{a.nombre}}</td><td>{{a.fecha.strftime('%d/%m/%Y %H:%M')}}</td><td class="n">{{ (a.tam / 1024)|round(0)|int }} KB</td>
+<td><form method="post" action="/copias/restaurar/revisar" style="margin:0"><input type="hidden" name="ruta" value="{{a.ruta}}"><button class="btn sec peq">Revisar / restaurar…</button></form></td></tr>
+{% else %}<tr><td colspan="4" class="muted">Ninguna todavía.</td></tr>{% endfor %}</table>
+<p class="muted" style="font-size:.86rem">Carpeta de datos: {{datos}}</p></div>
+<script>if(window.pywebview)document.querySelectorAll('#elegir,#elegirzip').forEach(b=>b.style.display='');
+window.addEventListener('pywebviewready',()=>document.querySelectorAll('#elegir,#elegirzip').forEach(b=>b.style.display=''));</script>
+{% endblock %}

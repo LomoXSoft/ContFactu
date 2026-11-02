@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block c %}
+<form method="post" action="/copias/restaurar" class="card">
+<h2>{{ico('restaurar',26)}}¿Restaurar esta copia?</h2>
+<table style="max-width:760px">
+<tr><th>Archivo</th><td>{{mostrado}}</td></tr>
+<tr><th>Fecha de la copia</th><td>{% if info.fecha %}{{info.fecha[:10]|fecha}} a las {{info.fecha[11:16]}}{% else %}desconocida{% endif %}</td></tr>
+<tr><th>Versión de ContFactu</th><td>{{info.version}}</td></tr>
+<tr><th>Contenido</th><td>{{info.empresas}} empresa(s): {{info.nombres|join(', ')}}<br>{{info.documentos}} documentos · {{info.clientes}} clientes ·
+{{info.proveedores}} proveedores · {{info.logos}} logotipo(s)</td></tr>
+{% if actual %}<tr><th>Datos actuales (se sustituyen)</th><td>{{actual.empresas}} empresa(s): {{actual.empresas_nombres|join(', ')}}<br>{{actual.documentos}} documentos ·
+{{actual.clientes}} clientes · {{actual.proveedores}} proveedores</td></tr>{% endif %}
+</table>
+<div class="aviso" style="margin-top:.8rem">Antes de restaurar se hará automáticamente una copia de los datos actuales.</div>
+<input type="hidden" name="token" value="{{token}}">
+<p><label style="display:flex;gap:.5rem;align-items:center;font-size:1rem;color:inherit"><input type="checkbox" name="confirmar" value="1" required style="width:auto">
+Entiendo que los datos actuales se sustituyen por los de esta copia.</label></p>
+<p class="acciones"><button class="btn peligro">{{ico('restaurar')}}Restaurar</button><a class="btn sec" href="/copias">{{ico('cancelar')}}Cancelar</a></p>
+</form>{% endblock %}

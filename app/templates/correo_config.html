@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block c %}
+<form method="post" class="card" autocomplete="off">
+<h2>{{ico('correo',24)}}Correo electrónico de {{e.nombre}}</h2>
+{% if ok %}<div class="okmsg">✔ Configuración de correo guardada.</div><br>{% endif %}
+{% if prueba_ok %}<div class="okmsg">✔ Conexión correcta: el servidor ha aceptado el usuario y la contraseña. No se ha enviado ningún correo.</div><br>{% endif %}
+{% if error %}<div class="aviso error">{{error}}</div><br>{% endif %}
+<p class="muted" style="margin-top:0">Datos del servidor de correo saliente (SMTP) que le da su proveedor de correo. ContFactu nunca envía nada
+sin que usted lo pida: cada envío se hace desde el documento, con una vista previa y el botón «Enviar».</p>
+<div class="grid">
+<label>Servidor SMTP<input name="servidor" value="{{c.servidor or ''}}" placeholder="smtp.ejemplo.es"></label>
+<label>Seguridad<select name="seguridad" id="seguridad" onchange="const p=document.getElementById('puerto');const m={ssl:465,starttls:587,ninguna:25};if(!p.dataset.tocado)p.value=m[this.value]">
+{% for k, v in SEGURIDADES.items() %}<option value="{{k}}" {{'selected' if c.seguridad == k}}>{{v}}</option>{% endfor %}</select></label>
+<label>Puerto<input name="puerto" id="puerto" type="number" min="1" max="65535" value="{{c.puerto or 465}}" oninput="this.dataset.tocado=1"></label>
+<label>Usuario<input name="usuario" value="{{c.usuario or ''}}" placeholder="normalmente, su dirección de correo"></label>
+<label>Contraseña<input name="contrasena" type="password" autocomplete="new-password" placeholder="{{'(guardada; escriba otra para cambiarla)' if hay_contrasena else ''}}"></label>
+{% if hay_contrasena %}<label style="display:flex;gap:.4rem;align-items:center;margin-top:1.2rem"><input type="checkbox" name="borrar_contrasena" value="1" style="width:auto">Borrar la contraseña guardada</label>{% endif %}
+</div>
+<p class="muted" style="font-size:.85rem">La contraseña se guarda en el <b>Administrador de credenciales de Windows</b>, no en la base de datos de ContFactu
+(por eso tampoco va en las copias de seguridad). Con Gmail, Outlook.com o Microsoft 365 suele hacer falta una «contraseña de aplicación».</p>
+<div class="grid">
+<label>Dirección del remitente<input name="remitente" value="{{c.remitente or ''}}" placeholder="facturas@suempresa.es"></label>
+<label>Nombre del remitente<input name="nombre_remitente" value="{{c.nombre_remitente or ''}}" placeholder="{{e.nombre}}"></label>
+<label>Enviarme siempre copia a (opcional)<input name="copia" value="{{c.copia or ''}}" placeholder="varias, separadas por ;"></label>
+</div>
+<h3 style="margin-top:1.2rem">Plantilla del mensaje</h3>
+<div class="grid" style="grid-template-columns:1fr">
+<label>Asunto<input name="asunto" value="{{c.asunto}}"></label>
+<label>Texto<textarea name="cuerpo" rows="8">{{c.cuerpo}}</textarea></label></div>
+<details style="margin-top:.4rem"><summary>Marcadores que se sustituyen al enviar</summary>
+<table style="max-width:680px">{% for k, v in MARCADORES.items() %}<tr><td><code>{{'{'}}{{k}}{{'}'}}</code></td><td>{{v}}</td></tr>{% endfor %}</table></details>
+<p class="acciones" style="margin-top:1rem"><button class="btn" name="accion" value="guardar">{{ico('guardar')}}Guardar</button>
+<button class="btn sec" name="accion" value="probar">{{ico('verificar')}}Guardar y probar la conexión</button>
+<a class="btn sec" href="/e/{{e.id}}/empresa">{{ico('cancelar')}}Volver</a></p>
+<p class="muted" style="font-size:.85rem">«Probar la conexión» solo se conecta e identifica en el servidor; no envía ningún correo.</p>
+</form>{% endblock %}

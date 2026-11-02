@@ -20,7 +20,7 @@ label input,label select,label textarea{width:100%}.acciones{display:flex;gap:.5
 .et{display:inline-block;border-radius:10px;padding:0 .5rem;font-size:.8rem;font-weight:600}
 .et.cobrado{background:#e3f7ec;color:var(--verde)}.et.pendiente{background:#fde8e7;color:var(--rojo)}.et.parcial{background:#fff4d6;color:#8a5a00}
 .et.facturado{background:#e8eefc;color:#2342a0}.et.rect{background:#f3e8ff;color:#6b21a8}
-h2{margin:.2rem 0 .6rem}
+h2{margin:.2rem 0 .6rem}.banda{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding:.55rem .9rem}
 .ico{vertical-align:-4px;margin-right:.38rem;flex:none}.btn .ico{background:#fff;border-radius:4px;padding:1px;margin-left:-.25rem}
 .btn.sec .ico{background:none;padding:0}.btn.peq .ico{width:15px;height:15px;vertical-align:-3px}
 header nav{display:flex;flex-wrap:wrap;gap:.15rem}header nav a{display:inline-flex;align-items:center;margin-right:.2rem;padding:.25rem .5rem;border-radius:6px}
@@ -33,8 +33,21 @@ header .marca{display:inline-flex;align-items:center}header .marca .ico{backgrou
 ("/e/%d/documentos?tipo=A"|format(e.id),"albaran","Albaranes"),("/e/%d/documentos?tipo=G"|format(e.id),"gasto","Gastos"),
 ("/e/%d/pendientes"|format(e.id),"cobros","Cobros pendientes"),("/e/%d/libros"|format(e.id),"libros","Libros IVA"),
 ("/e/%d/clientes"|format(e.id),"cliente","Clientes"),("/e/%d/proveedores"|format(e.id),"proveedor","Proveedores"),("/e/%d/nuevo/F"|format(e.id),"nuevo","Nueva factura"),
-("/e/%d/verificacion"|format(e.id),"verificar","Verificación"),("/e/%d/empresa"|format(e.id),"empresa","Empresa"),("/","listados","Cambiar de empresa"),("/acerca","contfactu","Acerca de")] %}<a href="{{href}}" class="{{'activo' if (href != '/' and A.startswith(href)) or (A ~ '&').startswith(href ~ '&') else ''}}">{{ico(icono,18)}}{{txt}}</a>{% endfor %}</nav>{% else %}<nav><a href="/">{{ico('listados',18)}}Empresas</a><a href="/empresas/nueva">{{ico('empresa',18)}}Nueva empresa</a><a href="/asistente">{{ico('importar',18)}}Importar de FactuCont</a><a href="/acerca">{{ico('contfactu',18)}}Acerca de</a></nav>{% endif %}</header>
-<main>{% block c %}{% endblock %}</main>
+("/e/%d/verificacion"|format(e.id),"verificar","Verificación"),("/e/%d/empresa"|format(e.id),"empresa","Empresa"),("/copias","copia","Copias"),("/","listados","Cambiar de empresa"),("/acerca","contfactu","Acerca de")] %}<a href="{{href}}" class="{{'activo' if (href != '/' and A.startswith(href)) or (A ~ '&').startswith(href ~ '&') else ''}}">{{ico(icono,18)}}{{txt}}</a>{% endfor %}</nav>{% else %}<nav><a href="/">{{ico('listados',18)}}Empresas</a><a href="/empresas/nueva">{{ico('empresa',18)}}Nueva empresa</a><a href="/asistente">{{ico('importar',18)}}Importar de FactuCont</a><a href="/copias">{{ico('copia',18)}}Copias de seguridad</a><a href="/acerca">{{ico('contfactu',18)}}Acerca de</a></nav>{% endif %}</header>
+<main>{% set AV = avisos_inicio(request, e) %}
+{% if AV.copia %}<div class="card aviso banda" role="status">{{ico('copia',20)}}<span>{% if AV.copia.dias is none %}Todavía no ha hecho ninguna copia de seguridad de sus datos.
+{% else %}La última copia de seguridad es de hace {{AV.copia.dias}} días.{% endif %}</span>
+<form method="post" action="/copias/crear" style="display:inline"><button class="btn peq">{{ico('copia')}}Hacer copia ahora</button></form>
+<a href="/copias" class="btn sec peq">Opciones</a>
+<form method="post" action="/copias/recordar-luego" style="display:inline;margin-left:auto"><button class="btn sec peq" title="No volver a avisar hasta que se abra de nuevo ContFactu">Recordar más tarde</button></form></div>{% endif %}
+{% if AV.cobros %}{% set AC = AV.cobros %}<div class="card aviso banda" role="status" style="{{'border-left-color:var(--rojo);background:#fde8e7' if AC.vencidos else ''}}">{{ico('alerta',20)}}<span>
+{% if AC.vencidos %}<b>{{AC.vencidos|length}} {{'cobro vencido' if AC.vencidos|length == 1 else 'cobros vencidos'}}</b> ({{AC.importe_vencido|eur}} €){% endif %}
+{% if AC.vencidos and AC.proximos %} · {% endif %}
+{% if AC.proximos %}<b>{{AC.proximos|length}}</b> {{'vence' if AC.proximos|length == 1 else 'vencen'}} en los próximos {{AC.dias}} días ({{AC.importe_proximo|eur}} €){% endif %}
+{% set primeros = (AC.vencidos + AC.proximos)[:3] %}<span class="muted" style="font-size:.88rem"> — {% for x in primeros %}<a href="/d/{{x.documento_id}}">{{x.numero}}</a> {{x.cliente[:28]}} {{x.fecha|fecha}}{{'; ' if not loop.last}}{% endfor %}{{'…' if (AC.vencidos + AC.proximos)|length > 3}}</span></span>
+<a href="/e/{{e.id}}/pendientes" class="btn peq">{{ico('cobros')}}Ver cobros pendientes</a>
+<form method="post" action="/e/{{e.id}}/alertas/ocultar" style="display:inline;margin-left:auto"><button class="btn sec peq" title="Ocultar hasta la próxima vez que se abra ContFactu">Ocultar</button></form></div>{% endif %}
+{% block c %}{% endblock %}</main>
 <footer style="text-align:center;color:#667085;font-size:.8rem;padding:.5rem 0 1rem"><a href="/acerca" style="color:#667085">ContFactu {{VERSION}}</a></footer>
 <script>
 /* Dentro de la ventana propia (pywebview) no hay pestañas ni descargas del navegador:

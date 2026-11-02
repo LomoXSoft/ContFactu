@@ -76,6 +76,14 @@ _SVG = {
     "filtrar": f'<path d="M3 4h18l-7 8.5V20l-4-2v-5.5z" fill="#4f8fe0" {K}/>',
     "inicio": (f'<path d="M3 11.5L12 4l9 7.5" fill="none" stroke="#1b1b1b" stroke-width="1.6"/><path d="M5.5 10v10h5v-6h3v6h5V10L12 4.8z" fill="#f3d21a" {K}/>'),
     "cancelar": f'<path d="M6 4l6 6 6-6 2 2-6 6 6 6-2 2-6-6-6 6-2-2 6-6-6-6z" fill="#e2342b" {K}/>',
+    "correo": (f'<rect x="2.5" y="5.5" width="19" height="13" rx="1.2" fill="#fff" {K}/>'
+               f'<path d="M3 6.3l9 7 9-7" fill="none" stroke="#1f4fd1" stroke-width="1.5" stroke-linejoin="round"/>'),
+    "copia": (f'<path d="M4 3.5h13l3 3v14H4z" fill="#1f4fd1" {K}/><rect x="7" y="3.5" width="9" height="5.5" fill="#fff" {K}/>'
+              f'<rect x="6.5" y="12.5" width="11" height="8" fill="#fff" {K}/><path d="M9 15.5h6M9 17.8h6" stroke="#1b1b1b" stroke-width="1"/>'),
+    "restaurar": (f'<path d="M4 12a8 8 0 1 0 2.4-5.7" fill="none" stroke="#1f9d3a" stroke-width="2.2" stroke-linecap="round"/>'
+                  f'<path d="M2.5 3.5v5.5H8z" fill="#1f9d3a" {K}/><path d="M12 7.5V12l3 2" fill="none" stroke="#1b1b1b" stroke-width="1.6" stroke-linecap="round"/>'),
+    "alerta": (f'<path d="M12 2.8l10 17.7H2z" fill="#f3d21a" {K}/><path d="M12 9v5.5" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round"/>'
+               f'<circle cx="12" cy="17.6" r="1.25" fill="#1b1b1b"/>'),
     "contfactu": (f'<path d="M5 2.5h10.5l3.5 3.5v15.5H5z" fill="#fff" {K}/><rect x="7.5" y="7" width="7.5" height="7.5" fill="#1f9d3a" {K}/>'
                   f'<path d="M7.5 17h9M7.5 19h6" stroke="#1f4fd1" stroke-width="1.2"/>'),
 }

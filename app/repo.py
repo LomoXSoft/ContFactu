@@ -2,9 +2,29 @@
 y libros de IVA. Todas las funciones reciben una conexión y NO hacen commit (lo hace quien llama con `with con:`)."""
 import datetime, re
 from decimal import Decimal as D
-from .calc import bases_desde_lineas, totales_cabecera, dec, r2, fmt_eur
+from .calc import bases_desde_lineas, totales_cabecera, dec, r2, fmt_eur, tramos_iva, desglose_json, tipo_iva_valido
 
 TASAS_RE = {dec(21): dec("5.2"), dec(10): dec("1.4"), dec(5): dec("0.62"), dec(4): dec("0.5")}
+RE_DEFECTO = "21:5.2,10:1.4,5:0.62,4:0.5"   # recargo de equivalencia por tipo de IVA (editable en la ficha de la empresa)
+
+def parse_tasas_re(txt):
+    """«21:5.2,10:1.4» -> {Decimal(21): Decimal('5.2'), ...}. Lanza ValueError si algún tipo no es válido."""
+    res = {}
+    for par in (txt if txt is not None else RE_DEFECTO).replace(";", ",").split(","):
+        if not par.strip():
+            continue
+        if ":" not in par:
+            raise ValueError(f"Recargo no válido: «{par.strip()}» (formato IVA:RE, p. ej. 21:5,2).")
+        iva, re_ = par.split(":", 1)
+        res[dec(tipo_iva_valido(iva))] = dec(tipo_iva_valido(re_))
+    return res
+
+def tasas_re_empresa(con, eid):
+    r = con.execute("SELECT re_tasas FROM empresas WHERE id=?", (eid,)).fetchone()
+    try:
+        return parse_tasas_re(r[0] if r and r[0] is not None else None)
+    except ValueError:
+        return dict(TASAS_RE)
 SERIE_RECTIFICATIVA = "R"
 MOTIVOS_R = {  # tipos de factura rectificativa del Reglamento de facturación / VeriFactu
     "R1": "Error fundado en derecho y art. 80 Uno, Dos y Seis LIVA",
@@ -140,22 +160,35 @@ def limpiar_lineas(lineas):
                     "comentario": int(coment), "fecha": l.get("fecha")})
     return res
 
-def calcular_cabecera(lineas, descuento="0", retencion="0", con_re=False, exento=False, iva_incluido=False):
-    """Bases por tipo de IVA (máx. 3, como FactuCont), RE, retención y total."""
+def calcular_cabecera(lineas, descuento="0", retencion="0", con_re=False, exento=False, iva_incluido=False, tasas_re=None):
+    """Bases por tipo de IVA (sin límite de tipos), RE, retención y total.
+    El desglose completo se guarda en «desglose_iva»; base1..3/iva1..3/re1..3 conservan los tres primeros tipos para
+    compatibilidad con los diseños de FactuCont y con versiones anteriores. tasas_re: {iva: re} de la empresa."""
+    tasas = TASAS_RE if tasas_re is None else tasas_re
     bases = bases_desde_lineas(lineas, descuento, iva_incluido)
-    if len(bases) > 3:
-        raise ErrorNegocio("Máximo 3 tipos de IVA distintos por documento (como en FactuCont).")
+    tramos = [(b, iva, (tasas.get(iva, D(0)) if con_re else D(0))) for iva, b in sorted(bases.items(), key=lambda x: -x[0])]
     cols = {f"{k}{i}": None for i in (1, 2, 3) for k in ("base", "iva", "re")}
-    for i, (iva, b) in enumerate(sorted(bases.items(), key=lambda x: -x[0]), 1):
-        cols[f"base{i}"], cols[f"iva{i}"] = str(b), format(iva, "f")
-        cols[f"re{i}"] = format(TASAS_RE.get(iva, D(0)), "f") if con_re else "0"
+    for i, (b, iva, re) in enumerate(tramos[:3], 1):
+        cols[f"base{i}"], cols[f"iva{i}"], cols[f"re{i}"] = str(b), format(iva, "f"), format(re, "f")
+    cols["desglose_iva"] = desglose_json(tramos)
     cab = dict(cols, retencion=str(retencion or "0"), exento=int(bool(exento)))
     tot = totales_cabecera(cab)
     cab["retenido"], cab["total"] = str(tot["retencion"]), str(tot["total"])
     return cab, tot
 
 def _con_re(d):
-    return any(dec(d.get(f"re{i}")) != 0 for i in (1, 2, 3))
+    return any(r != 0 for _, _, r in tramos_iva(d))
+
+def validar_lineas_iva(lineas):
+    """Cada línea puede llevar cualquier tipo de IVA entre 0 y 100 con dos decimales como máximo."""
+    for n, l in enumerate(lineas, 1):
+        if l.get("comentario"):
+            continue
+        try:
+            l["iva"] = tipo_iva_valido(l.get("iva"))
+        except ValueError as ex:
+            raise ErrorNegocio(f"Línea {n} («{(l.get('concepto') or '')[:40]}»): {ex}")
+    return lineas
 
 CAMPOS_CAB = ("fecha", "fecha_operacion", "nombre_f", "direccion_f", "ciudad_f", "nif", "cliente_codigo", "forma_pago",
               "dias_pago", "domiciliacion", "ccc", "bic", "num_factura_proveedor", "deducible")
@@ -187,7 +220,7 @@ def _regenerar_vencimientos(con, d, nuevo_pendiente):
 def guardar_documento(con, eid, tipo, datos, lineas, did=None):
     """Crea (did=None) o modifica un documento de cualquier tipo. Recalcula siempre bases, cuotas y total.
     datos: fecha, serie, nombre_f..., descuento, retencion, re (bool), exento, iva_incluido. Devuelve el id."""
-    lineas = limpiar_lineas(lineas)
+    lineas = validar_lineas_iva(limpiar_lineas(lineas))
     if not lineas:
         raise ErrorNegocio("El documento no tiene líneas.")
     fecha = datos.get("fecha") or hoy()
@@ -196,7 +229,7 @@ def guardar_documento(con, eid, tipo, datos, lineas, did=None):
     except ValueError:
         raise ErrorNegocio(f"Fecha no válida: {fecha}")
     cab, tot = calcular_cabecera(lineas, datos.get("descuento") or "0", datos.get("retencion") or "0", datos.get("re"),
-                                 datos.get("exento"), datos.get("iva_incluido"))
+                                 datos.get("exento"), datos.get("iva_incluido"), tasas_re=tasas_re_empresa(con, eid))
     valores = {k: datos.get(k) for k in CAMPOS_CAB if k in datos}
     valores["fecha"] = fecha
     valores.setdefault("fecha_operacion", fecha)
@@ -423,6 +456,28 @@ def pendientes(con, eid, hasta=None):
         res.append(d)
     return res
 
+def alertas_cobro(con, eid, dias=7, hoy_=None):
+    """Resumen de vencimientos de cobro ya vencidos y de los que vencen en los próximos `dias` días (incluido hoy)."""
+    hoy_ = hoy_ or hoy()
+    limite = (datetime.date.fromisoformat(hoy_) + datetime.timedelta(days=dias)).isoformat()
+    vencidos, proximos = [], []
+    for d in pendientes(con, eid, hoy_):
+        vtos = d["vencimientos"] or [{"fecha": d["fecha"], "importe": d["pendiente"], "cobrado": "0"}]
+        for p in vtos:
+            imp = dec(p["importe"]) - dec(p.get("cobrado"))
+            if imp <= 0 or not p.get("fecha"):
+                continue
+            x = {"documento_id": d["id"], "numero": num_visible(d), "tipo": d["tipo"], "cliente": d.get("nombre_f") or "",
+                 "fecha": p["fecha"], "importe": imp}
+            if p["fecha"] < hoy_:
+                vencidos.append(x)
+            elif p["fecha"] <= limite:
+                proximos.append(x)
+    vencidos.sort(key=lambda x: x["fecha"]); proximos.sort(key=lambda x: x["fecha"])
+    return {"vencidos": vencidos, "proximos": proximos, "dias": dias,
+            "importe_vencido": sum((x["importe"] for x in vencidos), D(0)),
+            "importe_proximo": sum((x["importe"] for x in proximos), D(0)), "hay": bool(vencidos or proximos)}
+
 def recibos_documento(con, did):
     """Vencimientos imprimibles como recibo: (plazo, nº de recibo correlativo dentro del documento)."""
     ps = [dict(p) for p in con.execute("SELECT * FROM plazos WHERE documento_id=? AND tipo IN ('','A') AND CAST(importe AS REAL)<>0 ORDER BY fecha, id", (did,))]
@@ -506,7 +561,8 @@ def libro(con, eid, clase, anio, trimestre=None):
                           "rectifica": ref, "nif": d.get("nif") or "", "nombre": d.get("nombre_f") or "",
                           "base": x["base"], "iva": x["iva"], "cuota_iva": x["cuota_iva"], "re": x["re"], "cuota_re": x["cuota_re"],
                           "retencion": t["retencion"] if i == 0 else D(0), "total": t["total"] if i == 0 else D(0),
-                          "primera": i == 0, "documento_id": d["id"]})
+                          "primera": i == 0, "documento_id": d["id"], "serie": (d.get("serie") or "").strip(),
+                          "num": d.get("numero") or "", "exento": bool(d.get("exento"))})
     return filas
 
 def resumen_libro(filas):
@@ -570,69 +626,6 @@ def libro_csv(filas, clase):
     return ("\ufeff" + out.getvalue()).encode("utf-8")  # BOM: Excel en español lo abre con acentos bien
 
 def libros_xlsx(con, eid, anio, trimestre=None):
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
-    import io
-    e = empresa(con, eid)
-    wb = Workbook()
-    titulo_p = f"{anio}" + (f" - {trimestre}T" if trimestre else " (año completo)")
-    cab = Font(bold=True, color="FFFFFF"); relleno = PatternFill("solid", fgColor="00407F")
-    for n, clase in enumerate(("emitidas", "recibidas")):
-        ws = wb.active if n == 0 else wb.create_sheet()
-        ws.title = "Emitidas" if clase == "emitidas" else "Recibidas"
-        cols = [c for c in COLUMNAS_LIBRO if not (clase == "emitidas" and c[0] == "num_proveedor")]
-        ws.append([f"Libro registro de facturas {clase} — {e['nombre']} ({e.get('nif') or ''}) — {titulo_p}"])
-        ws["A1"].font = Font(bold=True, size=12)
-        ws.append([t for _, t in cols])
-        for c in ws[2]:
-            c.font, c.fill, c.alignment = cab, relleno, Alignment(wrap_text=True)
-        filas = libro(con, eid, clase, anio, trimestre)
-        for f in filas:
-            fila = []
-            for k, _ in cols:
-                v = f[k]
-                if k in NUMERICAS: v = float(dec(v))
-                elif k.startswith("fecha") and v: v = datetime.date.fromisoformat(v)
-                fila.append(v)
-            ws.append(fila)
-        r = resumen_libro(filas)
-        ws.append([])
-        ws.append(["TOTALES"] + [""] * (len(cols) - 1))
-        ult = ws.max_row
-        for i, (k, _) in enumerate(cols, 1):
-            if k in ("base", "cuota_iva", "cuota_re", "retencion", "total"):
-                ws.cell(ult, i, float(r[k])).font = Font(bold=True)
-        ws.cell(ult, 1).font = Font(bold=True)
-        for i, (k, _) in enumerate(cols, 1):
-            letra = ws.cell(2, i).column_letter
-            ws.column_dimensions[letra].width = 30 if k == "nombre" else (12 if k in NUMERICAS else 14)
-            for celda in ws[letra][2:]:
-                if k in NUMERICAS: celda.number_format = '#,##0.00'
-                elif k.startswith("fecha"): celda.number_format = "DD/MM/YYYY"
-        ws.freeze_panes = "A3"
-    if trimestre:
-        ws = wb.create_sheet("Resumen 303")
-        s = resumen_303(con, eid, anio, trimestre)
-        ws.append([f"Resumen aproximado modelo 303 — {anio} {trimestre}T — ORIENTATIVO, revisar con la gestoría"])
-        ws["A1"].font = Font(bold=True)
-        ws.append(["Casillas", "Concepto", "Base", "Tipo %", "Cuota"])
-        for x in s["devengado"]:
-            ws.append(["/".join(x["casillas"]), f"IVA devengado al {_pc(x['iva'])} %", float(x["base"]), float(x["iva"]), float(x["cuota"])])
-        for x in s["otros"]:
-            ws.append(["—", f"IVA devengado a otro tipo ({_pc(x['iva'])} %)", float(x["base"]), float(x["iva"]), float(x["cuota"])])
-        for x in s["re"]:
-            ws.append(["16-24", f"Recargo de equivalencia {_pc(x['re'])} %", float(x["base"]), float(x["re"]), float(x["cuota"])])
-        ws.append(["27", "Total cuota devengada", "", "", float(s["c27"])])
-        ws.append(["28/29", "IVA deducible en operaciones interiores corrientes", float(s["c28"]), "", float(s["c29"])])
-        ws.append(["45", "Total a deducir", "", "", float(s["c45"])])
-        ws.append(["46", "Resultado régimen general (27 − 45)", "", "", float(s["c46"])])
-        ws.append([])
-        ws.append(["", "Retenciones practicadas por clientes (orientativo mod. 130)", "", "", float(s["ret_emitidas"])])
-        ws.append(["", "Retenciones de facturas recibidas (orientativo mod. 111/115)", "", "", float(s["ret_recibidas"])])
-        ws.column_dimensions["B"].width = 55
-        for col in "CE":
-            ws.column_dimensions[col].width = 14
-            for c in ws[col][2:]:
-                c.number_format = '#,##0.00'
-    buf = io.BytesIO(); wb.save(buf)
-    return buf.getvalue()
+    """Libros registro de IVA en Excel (ver excel.libros_iva)."""
+    from .excel import libros_iva
+    return libros_iva(con, eid, anio, trimestre)

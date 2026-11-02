@@ -9,7 +9,8 @@ Sirve como sustituto de **FactuCont 5**: puede **leer sus datos para importarlos
 > únicamente para que puedan pasarse a ContFactu. No incluye código, imágenes, iconos ni diseños de Binarema.
 
 Interfaz en español, en su propia ventana (Edge WebView2) o en el navegador. Los datos se guardan solo en el ordenador,
-en `%APPDATA%\ContFactu` (base de datos SQLite). No se envía nada a Internet.
+en `%APPDATA%\ContFactu` (base de datos SQLite). No se envía nada a Internet, salvo las facturas que usted mande por correo
+con su propio servidor de correo, y solo cuando pulsa «Enviar».
 
 Estado: **versión temprana (0.0.x)**. Use copias de seguridad.
 
@@ -17,6 +18,7 @@ Estado: **versión temprana (0.0.x)**. Use copias de seguridad.
 
 **Contenido:** [Funciones](#funciones) · [Requisitos](#requisitos) · [Instalar y actualizar](#instalar-y-actualizar) ·
 [Importar de FactuCont 5](#importar-de-factucont-5) · [Datos y copias de seguridad](#datos-y-copias-de-seguridad) ·
+[Correo](#enviar-facturas-por-correo) ·
 [Desarrollo](#ejecutar-desde-el-código-desarrollo) · [Pruebas](#pruebas) · [Construir el instalador](#construir-el-instalador-windows) ·
 [Limitaciones y planes](#limitaciones-y-planes) · [Licencia](#licencia)
 
@@ -39,7 +41,16 @@ Estado: **versión temprana (0.0.x)**. Use copias de seguridad.
 - **PDF**:
   - con un diseño propio por defecto;
   - con el diseño `.fmt` de cada empresa importada, para que las facturas salgan como antes.
-- **Libros de IVA** de emitidas y recibidas, con recargo de equivalencia y retenciones. Exportan a xlsx y CSV e incluyen un resumen **orientativo** del modelo 303.
+- **IVA sin límites**: cualquier tipo entre 0 y 100 % con hasta 2 decimales (p. ej. 7,5 %) en cada línea, y tantos tipos
+  distintos por factura como haga falta. Cada empresa tiene su lista editable de tipos habituales y de recargo de equivalencia.
+- **Libros de IVA** de emitidas y recibidas, con recargo de equivalencia y retenciones. Exportan a CSV y a Excel con columnas
+  al estilo de los libros registro de la AEAT, e incluyen un resumen **orientativo** del modelo 303.
+- **Exportar a Excel** los listados de facturas (y demás documentos), clientes, proveedores y cobros pendientes, con
+  formatos de fecha e importe y fila de totales.
+- **Enviar facturas por correo** con el PDF adjunto, desde el servidor de correo de cada empresa. Siempre con vista previa
+  y solo al pulsar «Enviar»; queda registro de cada envío en el documento.
+- **Avisos al abrir**: cobros vencidos y que vencen en los próximos 7 días, y recordatorio de copia de seguridad.
+- **Copias de seguridad en un clic** y restauración, con copia automática antes de cada actualización.
 
 Capturas (con datos inventados) en [`capturas/`](capturas/).
 
@@ -54,14 +65,31 @@ Capturas (con datos inventados) en [`capturas/`](capturas/).
 
 1. Descargue `ContFactu-Setup-<versión>.exe` de la [última versión publicada](https://github.com/LomoXSoft/ContFactu/releases/latest).
    Si quiere, compruebe su SHA-256, que figura en las notas de la versión:
-   `Get-FileHash .\ContFactu-Setup-0.0.3.exe` en PowerShell.
+   `Get-FileHash .\ContFactu-Setup-0.0.4.exe` en PowerShell.
 2. Ejecútelo. Se instala en `C:\Program Files\ContFactu` y crea accesos directos en el menú Inicio y, si lo elige, en el escritorio.
    El instalador no está firmado digitalmente, así que Windows SmartScreen puede avisar: «Más información» → «Ejecutar de todas formas».
 3. **Actualizar**: ejecute el instalador de la versión nueva encima de la anterior.
    - Si ContFactu está abierto, pide cerrarlo.
-   - Los datos no se tocan.
+   - Los datos se conservan. La primera vez que se abre una versión nueva, ContFactu hace **antes** una copia de seguridad
+     automática y después pone al día la base de datos (ver [Comprobar una actualización](#comprobar-una-actualización)).
    - Las versiones de prueba 0.0.1 y 0.0.2, que se instalaban en la carpeta del usuario, se desinstalan solas.
 4. **Desinstalar**: desde *Configuración → Aplicaciones*. Los datos de `%APPDATA%\ContFactu` se conservan.
+
+### Comprobar una actualización
+
+Para quedarse tranquilo al actualizar un equipo que ya tiene datos (por ejemplo, de la 0.0.1, la 0.0.2 o la 0.0.3 a la 0.0.4):
+
+1. **Antes**, con la versión antigua abierta, anote algunos datos de control: el número de empresas, y de una de ellas el
+   número de facturas del año y el total de la última factura. (Si quiere, copie además la carpeta `%APPDATA%\ContFactu`
+   a un pendrive.)
+2. Cierre ContFactu y ejecute el instalador nuevo.
+3. Abra ContFactu. En «Acerca de» debe figurar la versión **0.0.4**.
+4. Abra la carpeta `%APPDATA%\ContFactu\copias-automaticas` (pegue la ruta en la barra del Explorador): debe haber un
+   archivo `ContFactu-antes-de-0.0.4-<fecha>.zip`. Es la copia de los datos tal como estaban **antes** de actualizar.
+   En la pantalla «Copias de seguridad» aparece en la lista de copias automáticas.
+5. Compruebe los datos de control del paso 1: mismas empresas, mismas facturas y mismos totales.
+6. Si algo no cuadra, en «Copias de seguridad» pulse «Revisar / restaurar…» junto a esa copia automática. También puede
+   volver a instalar la versión anterior y restaurar esa copia.
 
 ## Importar de FactuCont 5
 
@@ -80,8 +108,27 @@ Capturas (con datos inventados) en [`capturas/`](capturas/).
 
 - Todo se guarda en `%APPDATA%\ContFactu`: la base de datos `contfactu.db`, los logotipos y el registro `contfactu.log`.
   ContFactu nunca escribe en la carpeta del programa ni envía datos por Internet.
-- **Copia de seguridad**: con ContFactu cerrado, copie la carpeta `%APPDATA%\ContFactu`
-  (o al menos `contfactu.db`) a un disco externo o a la nube.
+- **Copia de seguridad en un clic**: menú «Copias» → «Hacer copia ahora». Crea un `.zip` con fecha y hora
+  (`ContFactu-copia-AAAA-MM-DD_HHMMSS.zip`) con la base de datos, los logotipos y los ajustes. La copia de la base se hace
+  con la función de copia de SQLite, así que es coherente aunque ContFactu esté abierto.
+  - Por defecto se guarda en `Documentos\ContFactu-Copias`. Puede elegir otra carpeta (un pendrive, OneDrive…) y ContFactu
+    la recuerda.
+  - Si pasan más de 7 días sin copia, ContFactu lo recuerda al abrir. Los días se cambian en la misma pantalla (0 = no avisar).
+- **Restaurar**: en «Copias de seguridad» elija el `.zip`. ContFactu muestra lo que contiene y pide confirmación. Antes
+  de sustituir nada, guarda una copia automática de los datos actuales para poder deshacerlo.
+- **Copias automáticas** en `%APPDATA%\ContFactu\copias-automaticas`: antes de poner al día la base de datos con una versión
+  nueva y antes de cada restauración. Se conservan las 20 más recientes.
+- Las contraseñas del correo **no** están en la base de datos ni en las copias: se guardan en el Administrador de credenciales
+  de Windows (entrada `ContFactu-SMTP`). Tras restaurar en otro equipo, vuelva a escribirla en «Correo».
+
+## Enviar facturas por correo
+
+1. En «Empresa» → «Configurar el correo», indique el servidor de salida (SMTP), el puerto, la seguridad (SSL o STARTTLS),
+   el usuario y la contraseña. Pulse «Probar conexión»: comprueba el acceso sin enviar nada. Algunos proveedores (Gmail,
+   Outlook.com) exigen una «contraseña de aplicación».
+2. Ajuste si quiere el asunto y el texto. Admiten marcadores como `{numero}`, `{fecha}`, `{total}`, `{cliente}` o `{empresa}`.
+3. En una factura pulse «Enviar por correo…». Se rellena el correo del cliente de su ficha. Revise la vista previa, cambie
+   lo que quiera y pulse «Enviar». Nada se envía sin ese clic. El envío (o el error) queda anotado en la factura.
 
 ## Ejecutar desde el código (desarrollo)
 
@@ -152,6 +199,9 @@ Resultado: `instalador\Output\ContFactu-Setup-<versión>.exe`. La versión se de
 | `app/importer.py` | Lectura de los DBF de FactuCont 5. |
 | `app/origen.py` | Carpeta, .zip o .rar de origen. |
 | `app/fmt_pdf.py` | PDF por defecto e intérprete de los diseños `.fmt`. |
+| `app/copias.py` | Copias de seguridad y restauración. |
+| `app/correo.py` | Envío de facturas por correo (SMTP). |
+| `app/excel.py` | Exportación a Excel (libros de IVA y listados). |
 | `app/ventana.py` | Ventana con pywebview. |
 | `app/iconos.py` | Iconos SVG propios. |
 | `instalador/` | PyInstaller, Inno Setup y script de construcción. |
@@ -165,8 +215,10 @@ Resultado: `instalador\Output\ContFactu-Setup-<versión>.exe`. La versión se de
   - El esquema de la base de datos ya tiene columnas `vf_*` preparadas.
   - Compruebe los plazos que le aplican antes de usar ContFactu como sistema de facturación definitivo.
 - El resumen del modelo 303 es solo orientativo.
-- Hasta 3 tipos de IVA por factura (como FactuCont).
-- No hay factura electrónica (Facturae / B2B), modelos oficiales de la AEAT ni envío de facturas por correo.
+- Los diseños `.fmt` importados de FactuCont preveían 3 tipos de IVA. Con más, se imprimen todos en el mismo hueco con letra
+  más pequeña. El resumen del 303 lleva a casillas propias solo los tipos 4, 10 y 21 %; los demás aparecen aparte, para
+  revisarlos.
+- No hay factura electrónica (Facturae / B2B) ni modelos oficiales de la AEAT.
 - Versión temprana: haga copias de seguridad con frecuencia.
 
 Errores y sugerencias: [Issues](https://github.com/LomoXSoft/ContFactu/issues). Para contribuir, vea [CONTRIBUTING.md](CONTRIBUTING.md).

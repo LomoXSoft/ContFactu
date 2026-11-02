@@ -6,6 +6,44 @@ Formato: cada versión con lo nuevo, lo cambiado y lo corregido. La versión sal
 La 0.0.3 es la primera versión publicada en GitHub. La 0.0.1 y la 0.0.2 fueron versiones de prueba sin publicar; su
 historial de git no forma parte de este repositorio.
 
+## [0.0.4] — 2026-11-02
+
+### Nuevo
+- **Copias de seguridad en un clic** (menú «Copias»):
+  - un `.zip` con fecha y hora con la base de datos (copiada con la función de copia de SQLite, coherente aunque el
+    programa esté abierto), los logotipos y los ajustes;
+  - en la carpeta que elija el usuario, que se recuerda; por defecto `Documentos\ContFactu-Copias`;
+  - **restaurar** con vista previa del contenido y confirmación, y copia automática previa de los datos actuales;
+  - recordatorio al abrir si pasan más de 7 días sin copia (configurable; 0 = sin aviso).
+- **Actualización segura**: la base de datos guarda la versión del programa y del esquema. La primera vez que se abre
+  una versión nueva se hace una copia automática (`copias-automaticas\ContFactu-antes-de-<versión>-….zip`) **antes** de
+  poner al día la base. Pruebas que simulan bases de la 0.0.1 y la 0.0.3. El README explica cómo comprobarlo.
+- **Enviar facturas por correo** con el PDF adjunto:
+  - servidor SMTP por empresa (SSL o STARTTLS) y botón «Probar conexión»;
+  - la contraseña se guarda en el Administrador de credenciales de Windows, nunca en la base de datos;
+  - asunto y texto editables con marcadores (`{numero}`, `{fecha}`, `{total}`, `{cliente}`…);
+  - el correo del cliente sale de su ficha; siempre hay vista previa y solo se envía al pulsar «Enviar»;
+  - cada envío (o error) queda anotado en el documento.
+- **Exportar a Excel**:
+  - libros de IVA con columnas al estilo de los libros registro de la AEAT (ejercicio, periodo, fechas, serie y número,
+    NIF, base, tipo, cuota, recargo, retención, total…), resumen por tipo y resumen orientativo del 303;
+  - listados de facturas (y demás documentos), clientes, proveedores y cobros pendientes;
+  - fechas y euros con formato, fila de totales, cabecera fija y filtros.
+- **Avisos de cobro al abrir**: cobros vencidos y que vencen en los próximos 7 días, con enlace a cobros pendientes.
+  Se pueden ocultar hasta que se vuelva a abrir el programa.
+
+### Cambiado
+- **IVA sin límites**: en cada línea vale cualquier tipo entre 0 y 100 % con hasta 2 decimales (p. ej. 7,5 %), y una
+  factura puede tener tantos tipos distintos como haga falta (antes, como en FactuCont, un máximo de 3).
+  - Cada empresa tiene una tabla editable de tipos habituales con su recargo de equivalencia (antes los recargos eran fijos).
+  - Totales, libros, resumen del 303, PDF por defecto y diseños `.fmt` tienen en cuenta todos los tipos. En los diseños
+    `.fmt`, si hay más de 3, se imprimen todos con letra más pequeña.
+  - Las facturas antiguas e importadas no cambian.
+- El PDF del documento se comparte entre la descarga y el envío por correo.
+
+### Dependencias
+- `keyring` (para guardar la contraseña del correo en el Administrador de credenciales de Windows).
+
 ## [0.0.3] — 2026-11-02
 
 ### Nuevo

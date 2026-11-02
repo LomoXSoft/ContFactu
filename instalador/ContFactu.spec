@@ -44,7 +44,10 @@ a = Analysis(
            (ICONO, "."), (os.path.join(SPECPATH, "contfactu.png"), ".")] + collect_data_files("webview"),
     hiddenimports=collect_submodules("uvicorn") + collect_submodules("app") + collect_submodules("webview")
                   + ["herramientas", "herramientas.splash", "clr", "openpyxl", "reportlab.graphics.barcode.common",
-                     "reportlab.graphics.barcode.code128", "reportlab.graphics.barcode.qr"],
+                     "reportlab.graphics.barcode.code128", "reportlab.graphics.barcode.qr",
+                     # contraseña del correo en el Administrador de credenciales de Windows
+                     "keyring", "keyring.backends", "keyring.backends.Windows", "keyring.backends.fail",
+                     "win32ctypes", "win32ctypes.pywin32", "win32ctypes.pywin32.win32cred", "win32ctypes.core"],
     excludes=["pytest", "PIL.ImageQt", "PyQt5", "PyQt6", "PySide2", "PySide6", "numpy", "gi", "cefpython3"],
     noarchive=False,
 )

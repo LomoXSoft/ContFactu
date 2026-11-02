@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS empresas (
   serie_defecto TEXT,                   -- serie de facturas por defecto ('' = sin serie)
   contador_inicial INTEGER,             -- primer correlativo de facturas (empresa que viene de otro programa)
   ivas TEXT,                            -- tipos de IVA habituales, p. ej. '21,10,4,0' (el primero, por defecto)
+  re_tasas TEXT,                        -- 0.0.4: recargo de equivalencia por tipo de IVA, p. ej. '21:5.2,10:1.4,4:0.5'
   logo TEXT,                            -- nombre del archivo del logotipo en la carpeta de datos (logos/)
   creada TEXT
 );
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS documentos (
   rect_motivo TEXT,
   rect_base_original TEXT, rect_cuota_original TEXT,
   rect_pendiente_original TEXT,         -- (sustitución) pendiente que tenía la original al rectificarla
+  desglose_iva TEXT,                    -- 0.0.4: JSON [[base, iva, re], ...] con TODOS los tipos (sin límite de tres)
   total TEXT,                           -- calculado al importar/crear
   origen TEXT NOT NULL DEFAULT 'factucont',  -- 'factucont' o 'nuevo'
   -- Preparado para VeriFactu (fase 2, aún sin uso):
@@ -116,22 +118,33 @@ CREATE TABLE IF NOT EXISTS verificacion (
   id INTEGER PRIMARY KEY, empresa_id INTEGER, documento_id INTEGER,
   tipo TEXT, numero TEXT, detalle TEXT
 );
+CREATE TABLE IF NOT EXISTS ajustes (      -- 0.0.4: ajustes generales y versión de los datos
+  clave TEXT PRIMARY KEY, valor TEXT
+);
+CREATE TABLE IF NOT EXISTS correo_config ( -- 0.0.4: envío por correo (la contraseña va al Administrador de credenciales)
+  empresa_id INTEGER PRIMARY KEY REFERENCES empresas(id) ON DELETE CASCADE,
+  servidor TEXT, puerto INTEGER, seguridad TEXT, usuario TEXT, remitente TEXT, nombre_remitente TEXT,
+  copia TEXT, asunto TEXT, cuerpo TEXT
+);
+CREATE TABLE IF NOT EXISTS envios (       -- 0.0.4: registro de correos enviados por documento
+  id INTEGER PRIMARY KEY, documento_id INTEGER REFERENCES documentos(id) ON DELETE CASCADE,
+  fecha_hora TEXT, para TEXT, copia TEXT, asunto TEXT, adjunto TEXT, resultado TEXT, error TEXT
+);
 """
 
 COLUMNAS_NUEVAS = {  # migración de bases creadas con versiones anteriores
     "documentos": ["facturado_en_id INTEGER", "deducible INTEGER", "epigrafe INTEGER", "rect_original_id INTEGER",
-                   "rect_tipo TEXT", "rect_motivo TEXT", "rect_base_original TEXT", "rect_cuota_original TEXT", "rect_pendiente_original TEXT"],
+                   "rect_tipo TEXT", "rect_motivo TEXT", "rect_base_original TEXT", "rect_cuota_original TEXT", "rect_pendiente_original TEXT",
+                   "desglose_iva TEXT"],
     "plazos": ["cobrado TEXT NOT NULL DEFAULT '0'"],
     "empresas": ["cp TEXT", "provincia TEXT", "telefono TEXT", "email TEXT", "serie_defecto TEXT", "contador_inicial INTEGER",
-                 "ivas TEXT", "logo TEXT", "creada TEXT"],
+                 "ivas TEXT", "logo TEXT", "creada TEXT", "re_tasas TEXT"],
 }
 
-def connect(path=None):
-    p = Path(path or db_path())
-    p.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(p)
-    con.row_factory = sqlite3.Row
-    con.execute("PRAGMA foreign_keys = ON")
+ESQUEMA = 4   # versión del esquema (sube cuando cambian tablas o columnas); se guarda en ajustes.esquema
+_PREPARADAS = set()
+
+def _migrar_columnas(con):
     for tabla, cols in COLUMNAS_NUEVAS.items():
         existe = con.execute("SELECT 1 FROM sqlite_master WHERE name=?", (tabla,)).fetchone()
         if existe:
@@ -139,5 +152,72 @@ def connect(path=None):
             for c in cols:
                 if c.split()[0] not in actuales:
                     con.execute(f"ALTER TABLE {tabla} ADD COLUMN {c}")
-    con.executescript(SCHEMA)
+
+def version_datos(path):
+    """(versión del programa, esquema) que dejó la base; (None, None) si es anterior a la 0.0.4 o no existe."""
+    p = Path(path)
+    if not p.exists() or p.stat().st_size == 0:
+        return None, None
+    con = sqlite3.connect(f"file:{p.as_posix()}?mode=ro", uri=True)
+    try:
+        if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ajustes'").fetchone():
+            return None, None
+        d = dict(con.execute("SELECT clave, valor FROM ajustes WHERE clave IN ('version','esquema')").fetchall())
+        return d.get("version"), (int(d["esquema"]) if d.get("esquema") else None)
+    finally:
+        con.close()
+
+def _tiene_datos(path):
+    p = Path(path)
+    if not p.exists() or p.stat().st_size == 0:
+        return False
+    con = sqlite3.connect(f"file:{p.as_posix()}?mode=ro", uri=True)
+    try:
+        return bool(con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='empresas'").fetchone())
+    finally:
+        con.close()
+
+def _preparar(p, sin_copia=False):
+    """Primera apertura de la base en este proceso. Si la dejó otra versión del programa, ANTES de migrar el esquema
+    se hace una copia de seguridad automática de la carpeta de datos (copias-automaticas/)."""
+    from . import __version__
+    version, _ = version_datos(p) if p.exists() else (None, None)
+    if not sin_copia and version != __version__ and _tiene_datos(p):
+        from .copias import copia_automatica
+        copia_automatica(f"antes-de-{__version__}", db=p)
+    con = sqlite3.connect(p)
+    try:
+        _migrar_columnas(con)
+        con.executescript(SCHEMA)
+        _migrar_columnas(con)   # tablas recién creadas por SCHEMA en bases antiguas a medias
+        with con:
+            con.execute("INSERT OR REPLACE INTO ajustes(clave, valor) VALUES('version', ?)", (__version__,))
+            con.execute("INSERT OR REPLACE INTO ajustes(clave, valor) VALUES('esquema', ?)", (str(ESQUEMA),))
+            if version and version != __version__:
+                con.execute("INSERT OR REPLACE INTO ajustes(clave, valor) VALUES('version_anterior', ?)", (version,))
+    finally:
+        con.close()
+
+def connect(path=None):
+    p = Path(path or db_path())
+    p.parent.mkdir(parents=True, exist_ok=True)
+    clave = str(p.resolve())
+    if clave not in _PREPARADAS or not p.exists() or p.stat().st_size == 0:
+        _preparar(p)
+        _PREPARADAS.add(clave)
+    con = sqlite3.connect(p)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON")
     return con
+
+def olvidar_preparacion(path=None):
+    """Tras restaurar una copia: la próxima conexión vuelve a comprobar versión y esquema."""
+    _PREPARADAS.discard(str(Path(path or db_path()).resolve()))
+
+# ------------------------------------------------------------------------------------------------ ajustes generales
+def ajuste(con, clave, defecto=None):
+    r = con.execute("SELECT valor FROM ajustes WHERE clave=?", (clave,)).fetchone()
+    return r[0] if r and r[0] is not None else defecto
+
+def poner_ajuste(con, clave, valor):
+    con.execute("INSERT OR REPLACE INTO ajustes(clave, valor) VALUES(?, ?)", (clave, None if valor is None else str(valor)))

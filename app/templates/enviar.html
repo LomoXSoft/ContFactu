@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block c %}
+<form method="post" class="card" action="/d/{{d.id}}/enviar">
+<h2>{{ico('correo',24)}}Enviar {{titulo|lower}} {{d|num}} por correo</h2>
+{% if error %}<div class="aviso error">No se ha enviado: {{error}}</div><br>{% endif %}
+{% if not c.configurado %}<div class="aviso">Falta configurar el correo de la empresa (servidor y remitente).
+<a href="/e/{{e.id}}/correo">Configurar el correo</a>.</div><br>
+{% elif not hay_contrasena %}<div class="aviso">No hay contraseña guardada para el usuario {{c.usuario}}. <a href="/e/{{e.id}}/correo">Escríbala en la configuración de correo</a>.</div><br>{% endif %}
+<p class="muted" style="margin-top:0">Revise el mensaje. <b>No se envía nada hasta que pulse «Enviar».</b></p>
+<div class="grid" style="grid-template-columns:1fr">
+<label>De<input value="{{ (c.nombre_remitente ~ ' <' ~ c.remitente ~ '>') if c.nombre_remitente else (c.remitente or '(sin configurar)') }}" disabled></label>
+<label>Para{% if not para %} <span style="color:var(--rojo)">(la ficha del cliente no tiene correo: escríbalo aquí)</span>{% endif %}<input name="para" value="{{para}}" required placeholder="cliente@ejemplo.es"></label>
+<label>CC (opcional)<input name="copia" value="{{copia}}"></label>
+<label>Asunto<input name="asunto" value="{{asunto}}" required></label>
+<label>Mensaje<textarea name="cuerpo" rows="9">{{cuerpo}}</textarea></label></div>
+<p>{{ico('pdf')}}Adjunto: <a href="/d/{{d.id}}/pdf" target="_blank">{{adjunto}}</a> <span class="muted">(pulse para verlo antes de enviar)</span></p>
+<input type="hidden" name="confirmar" value="1">
+<p class="acciones"><button class="btn" {{'disabled' if not c.configurado}}>{{ico('correo')}}Enviar</button>
+<a class="btn sec" href="/d/{{d.id}}">{{ico('cancelar')}}Cancelar</a></p></form>
+{% if envios %}<div class="card"><h3>Envíos anteriores de este documento</h3><table><tr><th>Fecha y hora</th><th>Para</th><th>Resultado</th></tr>
+{% for v in envios %}<tr><td>{{v.fecha_hora[:10]|fecha}} {{v.fecha_hora[11:16]}}</td><td>{{v.para}}</td><td>{{'enviado' if v.resultado == 'enviado' else 'no enviado: ' ~ (v.error or '')}}</td></tr>{% endfor %}</table></div>{% endif %}
+{% endblock %}

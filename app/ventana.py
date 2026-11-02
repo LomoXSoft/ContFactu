@@ -86,6 +86,36 @@ class Puente:
         except Exception as e:
             return {"ok": False, "mensaje": f"No he podido guardar el archivo: {e}"}
 
+    def elegir_carpeta(self, inicial=""):
+        """Diálogo nativo «Seleccionar carpeta» (para la carpeta de las copias de seguridad)."""
+        try:
+            if self._dialogo:
+                r = self._dialogo(None)
+            else:
+                import webview
+                tipo = webview.FileDialog.FOLDER if hasattr(webview, "FileDialog") else webview.FOLDER_DIALOG
+                r = self.ventana.create_file_dialog(tipo, directory=inicial if inicial and os.path.isdir(inicial) else "")
+            if not r:
+                return {"ok": False}
+            return {"ok": True, "ruta": r if isinstance(r, str) else r[0]}
+        except Exception as e:
+            return {"ok": False, "mensaje": f"No he podido abrir el diálogo: {e}"}
+
+    def elegir_zip(self):
+        """Diálogo nativo «Abrir» para elegir el .zip de una copia (devuelve la ruta, que el servidor lee directamente)."""
+        try:
+            if self._dialogo:
+                r = self._dialogo("copia.zip")
+            else:
+                import webview
+                tipo = webview.FileDialog.OPEN if hasattr(webview, "FileDialog") else webview.OPEN_DIALOG
+                r = self.ventana.create_file_dialog(tipo, file_types=("Copia de ContFactu (*.zip)",))
+            if not r:
+                return {"ok": False}
+            return {"ok": True, "ruta": r if isinstance(r, str) else r[0]}
+        except Exception as e:
+            return {"ok": False, "mensaje": f"No he podido abrir el diálogo: {e}"}
+
     def abrir_externo(self, url):
         if url.startswith(("http://", "https://", "mailto:")):
             webbrowser.open(url)

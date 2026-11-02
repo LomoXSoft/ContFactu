@@ -1,11 +1,12 @@
 """Altas desde cero: empresas nuevas (sin FactuCont), clientes y proveedores.
 Como en repo.py, las funciones reciben una conexión y NO hacen commit."""
 import re
-from .repo import ErrorNegocio, hoy
+from .repo import ErrorNegocio, hoy, RE_DEFECTO, parse_tasas_re
+from .calc import tipo_iva_valido
 
 IVAS_DEFECTO = "21,10,4,0"
 CAMPOS_EMPRESA = ("codigo", "nombre", "nif", "direccion", "cp", "ciudad", "provincia", "telefono", "email", "actividad",
-                  "ccc", "bic", "serie_defecto", "contador_inicial", "ivas")
+                  "ccc", "bic", "serie_defecto", "contador_inicial", "ivas", "re_tasas")
 CAMPOS_TERCERO = {
     "clientes": ("codigo", "nombre", "nombre_f", "nif", "direccion", "ciudad", "telefono", "movil", "email", "contacto",
                  "forma_pago", "dias_pago", "descuento", "recargo", "ccc", "bic", "domiciliacion"),
@@ -51,8 +52,46 @@ def siguiente_codigo_empresa(con):
     return f"{n:05d}"
 
 def ivas_de(e):
-    """Tipos de IVA habituales de la empresa (texto con coma decimal), el primero es el de por defecto."""
+    """Tipos de IVA habituales de la empresa (texto con punto decimal, p. ej. '7.5'); el primero es el de por defecto."""
     return [x.strip() for x in ((e or {}).get("ivas") or IVAS_DEFECTO).split(",") if x.strip()]
+
+def tasas_re_de(e):
+    """{'21': '5.2', ...} recargo de equivalencia por tipo de IVA de la empresa."""
+    txt = (e or {}).get("re_tasas")
+    try:
+        return {format(k, "f"): format(v, "f") for k, v in parse_tasas_re(RE_DEFECTO if txt is None else txt).items()}
+    except ValueError:
+        return {format(k, "f"): format(v, "f") for k, v in parse_tasas_re(RE_DEFECTO).items()}
+
+def tabla_tipos(e):
+    """Filas (iva, re) para la tabla editable de tipos de la ficha de la empresa: los habituales y los que tengan recargo."""
+    re_ = tasas_re_de(e)
+    filas = [(i, re_.get(i, "")) for i in ivas_de(e)]
+    filas += [(i, r) for i, r in re_.items() if i not in ivas_de(e)]
+    return filas
+
+def tipos_desde_tabla(ivas, res):
+    """Listas paralelas del formulario (tipo de IVA, recargo) -> ('21,10,7.5', '21:5.2,10:1.4'). Filas vacías se ignoran."""
+    lista, tasas = [], []
+    for iva, re_ in zip(ivas, res):
+        iva, re_ = (iva or "").strip(), (re_ or "").strip()
+        if not iva and not re_:
+            continue
+        if not iva:
+            raise ErrorNegocio(f"Hay un recargo ({re_}) sin tipo de IVA.")
+        try:
+            iva = tipo_iva_valido(iva)
+            re_ = tipo_iva_valido(re_) if re_ else ""
+        except ValueError as ex:
+            raise ErrorNegocio(str(ex))
+        if iva in lista:
+            raise ErrorNegocio(f"El tipo de IVA {iva.replace('.', ',')} % está repetido.")
+        lista.append(iva)
+        if re_ and re_ != "0":
+            tasas.append(f"{iva}:{re_}")
+    if not lista:
+        raise ErrorNegocio("Indique al menos un tipo de IVA.")
+    return ",".join(lista), ",".join(tasas)
 
 def _limpiar_empresa(datos, con, eid=None):
     d = {k: (str(datos.get(k)).strip() if datos.get(k) is not None else "") for k in CAMPOS_EMPRESA}
@@ -86,18 +125,23 @@ def _limpiar_empresa(datos, con, eid=None):
         raise ErrorNegocio("El primer número de factura debe ser un número entre 1 y 99999.")
     ivas = []
     for x in (d["ivas"] or IVAS_DEFECTO).replace(";", ",").split(","):
-        x = x.strip().replace("%", "").replace(",", ".")
-        if not x:
+        if not x.strip():
             continue
         try:
-            v = float(x); assert 0 <= v < 100
-        except (ValueError, AssertionError):
-            raise ErrorNegocio(f"Tipo de IVA no válido: «{x}».")
-        x = x.rstrip("0").rstrip(".") if "." in x else x
+            x = tipo_iva_valido(x)
+        except ValueError as ex:
+            raise ErrorNegocio(f"Tipo de IVA no válido: «{x.strip()}». {ex}")
         if x not in ivas:
             ivas.append(x)
     if not ivas:
         raise ErrorNegocio("Indique al menos un tipo de IVA.")
+    if datos.get("re_tasas") is None:
+        d["re_tasas"] = RE_DEFECTO if eid is None else None
+    else:
+        try:
+            parse_tasas_re(d["re_tasas"])
+        except ValueError as ex:
+            raise ErrorNegocio(str(ex))
     d["ivas"] = ",".join(ivas)
     return d
 
@@ -111,6 +155,8 @@ def crear_empresa(con, datos):
 
 def actualizar_empresa(con, eid, datos):
     d = _limpiar_empresa(datos, con, eid)
+    if d.get("re_tasas") is None:
+        d.pop("re_tasas")   # el formulario no lo envió: se conserva el que hubiera
     if con.execute("SELECT 1 FROM documentos WHERE empresa_id=? AND tipo='F'", (eid,)).fetchone():
         d.pop("contador_inicial")   # con facturas emitidas ya no cambia el arranque de la numeración
     con.execute(f"UPDATE empresas SET {', '.join(k + '=?' for k in d)} WHERE id=?", [*d.values(), eid])
