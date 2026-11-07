@@ -12,7 +12,7 @@ Interfaz en español, en su propia ventana (Edge WebView2) o en el navegador. Lo
 en `%APPDATA%\ContFactu` (base de datos SQLite). No se envía nada a Internet, salvo las facturas que usted mande por correo
 con su propio servidor de correo, y solo cuando pulsa «Enviar».
 
-Estado: **versión temprana (0.0.x)**. Use copias de seguridad.
+Estado: **0.1.0**. Sigue en evolución (vea las limitaciones). Haga copias de seguridad.
 
 ![Primera pantalla de ContFactu](capturas/28_v003_bienvenida.png)
 
@@ -75,7 +75,7 @@ Capturas (con datos inventados) en [`capturas/`](capturas/). Algunas de la 0.0.5
 
 1. Descargue `ContFactu-Setup-<versión>.exe` de la [última versión publicada](https://github.com/LomoXSoft/ContFactu/releases/latest).
    Si quiere, compruebe su SHA-256, que figura en las notas de la versión:
-   `Get-FileHash .\ContFactu-Setup-0.0.5.exe` en PowerShell.
+   `Get-FileHash .\ContFactu-Setup-0.1.0.exe` en PowerShell.
 2. Ejecútelo. Se instala en `C:\Program Files\ContFactu` y crea accesos directos en el menú Inicio y, si lo elige, en el escritorio.
    El instalador no está firmado digitalmente, así que Windows SmartScreen puede avisar: «Más información» → «Ejecutar de todas formas».
 3. **Actualizar**: ejecute el instalador de la versión nueva encima de la anterior.
@@ -87,15 +87,18 @@ Capturas (con datos inventados) en [`capturas/`](capturas/). Algunas de la 0.0.5
 
 ### Comprobar una actualización
 
-Para quedarse tranquilo al actualizar un equipo que ya tiene datos (por ejemplo, de la 0.0.1, la 0.0.4 o cualquier otra a la 0.0.5):
+La **0.1.0** corrige un bloqueo al abrir en Windows: con la 0.0.5 la ventana podía quedarse «No responde» justo al
+arrancar, con la pantalla de carga todavía delante, y había que forzar el cierre. No cambia el uso del programa.
+
+Para quedarse tranquilo al actualizar un equipo que ya tiene datos (por ejemplo, de la 0.0.1, la 0.0.4 o la 0.0.5):
 
 1. **Antes**, con la versión antigua abierta, anote algunos datos de control: el número de empresas, y de una de ellas el
    número de facturas del año y el total de la última factura. (Si quiere, copie además la carpeta `%APPDATA%\ContFactu`
    a un pendrive.)
 2. Cierre ContFactu y ejecute el instalador nuevo.
-3. Abra ContFactu. En «Acerca de» debe figurar la versión **0.0.5**.
+3. Abra ContFactu. La ventana debe responder y la pantalla de carga desaparecer. En «Acerca de» debe figurar la versión **0.1.0**.
 4. Abra la carpeta `%APPDATA%\ContFactu\copias-automaticas` (pegue la ruta en la barra del Explorador): debe haber un
-   archivo `ContFactu-antes-de-0.0.5-<fecha>.zip`. Es la copia de los datos tal como estaban **antes** de actualizar.
+   archivo `ContFactu-antes-de-0.1.0-<fecha>.zip`. Es la copia de los datos tal como estaban **antes** de actualizar.
    En la pantalla «Copias de seguridad» aparece en la lista «Copias disponibles».
 5. Compruebe los datos de control del paso 1: mismas empresas, mismas facturas y mismos totales.
 6. Si algo no cuadra, en «Copias de seguridad» pulse «Revisar / restaurar…» junto a esa copia automática. También puede

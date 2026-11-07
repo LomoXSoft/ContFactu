@@ -6,6 +6,37 @@ Formato: cada versión con lo nuevo, lo cambiado y lo corregido. La versión sal
 La 0.0.3 es la primera versión publicada en GitHub. La 0.0.1 y la 0.0.2 fueron versiones de prueba sin publicar; su
 historial de git no forma parte de este repositorio.
 
+## [0.1.0] — 2026-11-07
+
+Corrige el bloqueo al abrir la ventana propia en Windows. No añade pantallas, avisos ni opciones.
+Es una versión normal (no una pre-release): el número no lleva sufijo de candidata. Los datos siguen en
+`%APPDATA%\ContFactu` y no se migran a otro sitio.
+
+La 0.0.1 no lo sufría: se abría en el navegador. A partir de la ventana propia, pywebview 5 y posteriores
+recorren los atributos públicos del puente con la página. La construcción instala `pywebview>=5`; al
+preparar esta versión eso es la 6.2.1, que es la que reproduce el error. El puente guardaba la ventana
+en un atributo público.
+
+### Corregido
+- **La ventana dejaba de responder al arrancar** (visto en la 0.0.5 al actualizar desde la 0.0.1).
+  La pantalla principal llegaba a pintarse, el programa no respondía, la pantalla de carga seguía delante
+  y había que forzar el cierre. Windows lo registraba como Application Hang 1002 / AppHangB1, con WebView2
+  y pythonnet en el proceso.
+- El registro de pywebview era `Error while processing ventana.native.AccessibilityObject.Bounds.Empty…`
+  (`maximum recursion depth exceeded`) y también `Empty.Location`. El recorrido entra en el control nativo
+  de WebView2 y en Windows bloquea el arranque. Ocurre antes del aviso de «página cargada», que es el que
+  cierra la pantalla de carga; por eso el splash no desaparecía.
+- La ventana queda en un atributo privado, que pywebview no recorre. Abrir un PDF, guardar un Excel o CSV
+  y elegir carpeta o copia usan esa misma ventana. El servidor se detiene al cerrarla, como hasta ahora.
+
+### Comprobación
+- Pruebas automáticas con datos sintéticos: el recorrido real de la pywebview instalada ya no entra en el
+  control nativo; la pantalla de carga se cierra al cargar; los diálogos y el cierre del servidor siguen
+  en su sitio.
+- En la preparación de esta versión **no se ha abierto la ventana real de Windows** ni se ha generado aquí
+  el instalador. Hay que construir `ContFactu-Setup-0.1.0.exe` en un equipo de compilación y probar el
+  arranque antes de publicar la release.
+
 ## [0.0.5] — 2026-11-02
 
 Regla de esta versión: **todo lo nuevo es opcional y viene desactivado**. Quien actualiza desde la 0.0.4 sigue igual

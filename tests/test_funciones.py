@@ -480,15 +480,15 @@ def test_origen_rar_con_fc5_en_subcarpeta():
 # ---------------------------------------------------------------- 0.0.2: versión, ventana propia, iconos, splash
 def test_version_unica_y_visible(cliente_web):
     import app
-    assert app.__version__ == "0.0.5"
+    assert app.__version__ == "0.1.0"
     h = cliente_web.get("/acerca").text
-    assert "ContFactu 0.0.5" in h and "LomoXSoft" in h
-    assert cliente_web.get("/salud").text == "ContFactu OK 0.0.5"
-    assert "<title>ContFactu 0.0.5</title>" in cliente_web.get("/asistente").text
+    assert "ContFactu 0.1.0" in h and "LomoXSoft" in h
+    assert cliente_web.get("/salud").text == "ContFactu OK 0.1.0"
+    assert "<title>ContFactu 0.1.0</title>" in cliente_web.get("/asistente").text
 
 def test_changelog_tiene_versiones():
     t = (Path(__file__).parent.parent / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "0.0.1" in t and "0.0.2" in t and "0.0.3" in t and "0.0.4" in t and "0.0.5" in t
+    assert "0.0.1" in t and "0.0.2" in t and "0.0.3" in t and "0.0.4" in t and "0.0.5" in t and "0.1.0" in t
 
 def test_iconos_svg_validos_y_en_menu(cliente_web, con):
     import xml.etree.ElementTree as ET
@@ -552,12 +552,15 @@ def test_plantilla_intercepta_descargas_en_ventana(cliente_web):
     h = cliente_web.get("/asistente").text
     assert "window.pywebview.api" in h and "guardar" in h and "abrir(" in h
 
-def test_main_usa_navegador_si_falla_la_ventana(monkeypatch):
+def test_main_usa_navegador_si_falla_la_ventana(monkeypatch, tmp_path):
     """Sin WebView2/pywebview: arranca servidor y abre el navegador; con ventana: al cerrarla se para el servidor."""
     import app.__main__ as M, app.ventana as V, webbrowser
-    abiertos = []
+    abiertos, copias, splashes = [], [], []
     monkeypatch.setenv("CONTFACTU_PORT", "8899"); monkeypatch.delenv("CONTFACTU_NO_BROWSER", raising=False)
+    monkeypatch.setenv("CONTFACTU_DATA", str(tmp_path / "datos"))
     monkeypatch.setattr(M, "es_contfactu", lambda p: False)
+    monkeypatch.setattr(M, "copia_programada", lambda cuando: copias.append(cuando))
+    monkeypatch.setattr(M, "cerrar_splash", lambda: splashes.append(1))
     monkeypatch.setattr(webbrowser, "open", abiertos.append)
     estado = {}
     def ventana_ok(url, titulo, al_cargar=None, registrar_mostrar=None):
@@ -565,8 +568,15 @@ def test_main_usa_navegador_si_falla_la_ventana(monkeypatch):
     monkeypatch.setattr(V, "webview2_instalado", lambda: True)
     monkeypatch.setattr(V, "abrir_ventana", ventana_ok)
     M.main()                                         # vuelve al "cerrar la ventana"
-    assert estado["titulo"] == "ContFactu 0.0.5" and abiertos == []
-    import time, urllib.request
+    import time
+    for _ in range(50):
+        if "abrir" in copias:
+            break
+        time.sleep(0.01)
+    assert estado["titulo"] == "ContFactu 0.1.0" and abiertos == []
+    assert "abrir" in copias and "cerrar" in copias          # la copia al cerrar sigue en el cierre limpio
+    assert splashes == [1]                                   # el splash se cierra al cargar, no se queda delante
+    import urllib.request
     time.sleep(0.3)
     with pytest.raises(Exception):                   # servidor detenido al cerrar la ventana
         urllib.request.urlopen("http://127.0.0.1:8899/salud", timeout=1)
@@ -577,6 +587,7 @@ def test_main_usa_navegador_si_falla_la_ventana(monkeypatch):
     monkeypatch.setattr(threading.Thread, "join", lambda self, timeout=None: None)
     M.main()
     assert abiertos and abiertos[0].startswith("http://127.0.0.1:")
+    assert splashes == [1, 1]                               # si la ventana no abre, el splash también se cierra
 
 
 # ---------------------------------------------------------------- 0.0.3: primera pantalla y empresa desde cero

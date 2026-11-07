@@ -48,25 +48,33 @@ def abrir_con_sistema(ruta):
         import subprocess; subprocess.Popen(["xdg-open", ruta])
 
 class Puente:
-    """API expuesta a la página como window.pywebview.api (solo rutas del servidor local)."""
+    """API expuesta a la página como window.pywebview.api (solo rutas del servidor local).
+
+    pywebview 5 y posteriores recorren los atributos públicos de este objeto para
+    ofrecerlos a JavaScript, y no recorren los que empiezan por «_». La ventana va
+    en `_ventana`: si fuera pública, el recorrido entraría en el control nativo de
+    WebView2 (`ventana.native.AccessibilityObject.Bounds.Empty`, y también
+    `Empty.Location`). En Windows eso deja la interfaz sin responder y la pantalla
+    de carga no llega a cerrarse, porque ocurre antes del aviso de página cargada.
+    """
     def __init__(self, base, carpeta_tmp=None, abrir=abrir_con_sistema, dialogo=None):
-        self.base = base.rstrip("/")
-        self.tmp = carpeta_tmp or os.path.join(tempfile.gettempdir(), "ContFactu")
+        self._base = base.rstrip("/")
+        self._tmp = carpeta_tmp or os.path.join(tempfile.gettempdir(), "ContFactu")
         self._abrir = abrir
         self._dialogo = dialogo   # función(nombre) -> ruta elegida o None
-        self.ventana = None
+        self._ventana = None
 
     def _bajar(self, ruta):
         if not ruta.startswith("/"):
             raise ValueError("ruta no válida")
-        with urllib.request.urlopen(self.base + ruta, timeout=60) as r:
+        with urllib.request.urlopen(self._base + ruta, timeout=60) as r:
             return r.read(), _nombre_de(r.headers.get("Content-Disposition"), ruta)
 
     def abrir(self, ruta):
         try:
             datos, nombre = self._bajar(ruta)
-            os.makedirs(self.tmp, exist_ok=True)
-            destino = os.path.join(self.tmp, f"{int(time.time()*1000)}_{nombre}")
+            os.makedirs(self._tmp, exist_ok=True)
+            destino = os.path.join(self._tmp, f"{int(time.time()*1000)}_{nombre}")
             with open(destino, "wb") as f:
                 f.write(datos)
             self._abrir(destino)
@@ -94,7 +102,7 @@ class Puente:
             else:
                 import webview
                 tipo = webview.FileDialog.FOLDER if hasattr(webview, "FileDialog") else webview.FOLDER_DIALOG
-                r = self.ventana.create_file_dialog(tipo, directory=inicial if inicial and os.path.isdir(inicial) else "")
+                r = self._ventana.create_file_dialog(tipo, directory=inicial if inicial and os.path.isdir(inicial) else "")
             if not r:
                 return {"ok": False}
             return {"ok": True, "ruta": r if isinstance(r, str) else r[0]}
@@ -109,7 +117,7 @@ class Puente:
             else:
                 import webview
                 tipo = webview.FileDialog.OPEN if hasattr(webview, "FileDialog") else webview.OPEN_DIALOG
-                r = self.ventana.create_file_dialog(tipo, file_types=("Copia de ContFactu (*.zip)",))
+                r = self._ventana.create_file_dialog(tipo, file_types=("Copia de ContFactu (*.zip)",))
             if not r:
                 return {"ok": False}
             return {"ok": True, "ruta": r if isinstance(r, str) else r[0]}
@@ -128,7 +136,7 @@ class Puente:
         ext = os.path.splitext(nombre)[1].lstrip(".").lower()
         tipos = {"xlsx": ("Libro de Excel (*.xlsx)",), "csv": ("Texto CSV (*.csv)",), "pdf": ("PDF (*.pdf)",)}.get(ext, ("Todos (*.*)",))
         docs = os.path.join(os.path.expanduser("~"), "Documents")
-        r = self.ventana.create_file_dialog(webview.FileDialog.SAVE if hasattr(webview, "FileDialog") else webview.SAVE_DIALOG,
+        r = self._ventana.create_file_dialog(webview.FileDialog.SAVE if hasattr(webview, "FileDialog") else webview.SAVE_DIALOG,
                                             directory=docs if os.path.isdir(docs) else "", save_filename=nombre, file_types=tipos)
         if not r:
             return None
@@ -169,7 +177,7 @@ def abrir_ventana(url, titulo, al_cargar=None, registrar_mostrar=None):
     puente = Puente(url)
     v = webview.create_window(titulo, url, js_api=puente, width=1280, height=860, min_size=(900, 600),
                               resizable=True, text_select=True, confirm_close=False)
-    puente.ventana = v
+    puente._ventana = v
     if al_cargar:
         v.events.loaded += lambda *a: al_cargar()
     if registrar_mostrar:

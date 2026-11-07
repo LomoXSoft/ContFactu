@@ -7,5 +7,7 @@ dbfread>=2.0.7
 pytest>=8
 httpx>=0.27
 openpyxl>=3.1
+# 5 o superior recorre los atributos públicos de js_api. La ventana del puente
+# tiene que seguir en _ventana (tests/test_010.py); si vuelve a ser pública, Windows se cuelga al arrancar.
 pywebview>=5.0
 keyring>=24
