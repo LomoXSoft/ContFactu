@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="permiso_camara">La cámara solo se usa para leer el código QR del PC. Si no quiere dar el permiso, escriba el código de respaldo.</string>
+</resources>

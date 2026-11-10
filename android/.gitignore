@@ -1,0 +1,26 @@
+*.iml
+.gradle/
+.idea/
+.signing/
+local.properties
+keystore.properties
+*.jks
+*.keystore
+*.pem
+capture/
+.externalNativeBuild/
+.cxx/
+build/
+**/build/
+captures/
+.DS_Store
+*.apk
+*.aab
+*.ap_
+*.hprof
+output.json
+# Material de firma: nunca en el repositorio
+*.p12
+*.pfx
+*.pass
+firma.properties

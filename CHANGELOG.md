@@ -12,8 +12,8 @@ Acceso opcional desde un móvil emparejado. Viene **desactivado**: quien actuali
 igual (la ventana escucha solo en este equipo) hasta que lo active en Ajustes. Los datos no se mueven de
 sitio y, antes de poner al día la base, se hace la copia de siempre.
 
-La aplicación Android no entra en esta versión. Aquí está el lado PC y el contrato que esa aplicación
-consumirá (`docs/api-movil.md`).
+Con esta versión se publica también la **app ContFactu para Android 0.2.0, en beta**. Comparte numeración
+con el programa del PC y su código está en `android/`. Contrato de la API: `docs/api-movil.md`.
 
 ### Nuevo
 - **Ajustes → «Permitir acceso desde el móvil»**, desactivado de origen. Sin avisos al abrir.
@@ -49,14 +49,32 @@ consumirá (`docs/api-movil.md`).
 - El instalador avisa, en la bienvenida, de que actualizar es instalar en la misma carpeta y de que
   los datos de `%APPDATA%\ContFactu` no se tocan.
 
+### App Android 0.2.0 (beta)
+- Primera versión, **beta**: cliente del acceso móvil, sin datos de negocio en el móvil. Kotlin y Jetpack Compose,
+  Android 8.0 o superior, sin servicios de Google, analítica ni publicidad. GPL-3.0-or-later.
+- Emparejamiento con el QR (las direcciones se prueban en orden) o a mano, solo con la dirección del PC y el código.
+  La huella no se teclea: el móvil la confirma con el HMAC del PC antes de anclarla y, si no cuadra, no envía el código.
+- TLS 1.2 o superior con la huella SHA-256 del certificado anclada. Sin huella coincidente no se envía el código ni el
+  token, y no hay tráfico en claro.
+- Facturas: listado por año con búsqueda, detalle, alta, edición y PDF. Clientes y búsqueda de clientes y facturas.
+- Un dato rechazado por el PC (por ejemplo, el NIF o un IVA, descuento o recargo fuera de 0–100 %) se avisa en su campo
+  y se conserva lo escrito.
+- Token y huella cifrados con el almacén de claves de Android; opción «Olvidar este PC». Los PDF solo viven en la caché
+  temporal.
+- El lanzador muestra la versión: «ContFactu 0.2.0».
+- La APK publicada se firma con la clave de publicación de LomoXSoft, que no está en el repositorio. Gradle lee la
+  firma de un archivo de propiedades fuera de git (`CONTFACTU_FIRMA`); sin él, la APK sale sin firmar.
+
 ### Dependencias
 - `cryptography`, para crear el certificado del acceso móvil. No se usa mientras la opción está desactivada.
 
 ### Comprobación
 - Pruebas automáticas con datos sintéticos: opción apagada, escucha solo local, rechazo sin token o con
   token revocado, límite de intentos y TLS con la huella anclada.
-- En la preparación de esta versión **no se ha abierto la ventana real de Windows** ni se ha probado con
-  un móvil Android. El TLS se ha probado en local, de extremo a extremo, con un cliente de pruebas.
+- Pruebas de unidad de la app Android: lectura del QR, anclaje de la huella, prueba HMAC del emparejamiento a mano,
+  validación y cliente de la API contra un servidor simulado.
+- **Probado con equipos reales**: el programa instalado en Windows y la app en un móvil Android, emparejando el
+  móvil, consultando facturas y creando algunas.
 
 ## [0.1.0] — 2026-11-07
 

@@ -18,7 +18,7 @@ Estado: **0.2.0**. Sigue en evolución (vea las limitaciones). Haga copias de se
 
 **Contenido:** [Funciones](#funciones) · [Requisitos](#requisitos) · [Instalar y actualizar](#instalar-y-actualizar) ·
 [Importar de FactuCont 5](#importar-de-factucont-5) · [Datos y copias de seguridad](#datos-y-copias-de-seguridad) ·
-[Correo](#enviar-facturas-por-correo) ·
+[Correo](#enviar-facturas-por-correo) · [App Android (beta)](#app-android-beta) ·
 [Desarrollo](#ejecutar-desde-el-código-desarrollo) · [Pruebas](#pruebas) · [Construir el instalador](#construir-el-instalador-windows) ·
 [Limitaciones y planes](#limitaciones-y-planes) · [Apoyar el proyecto](#apoyar-el-proyecto) · [Licencia](#licencia)
 
@@ -59,7 +59,8 @@ Estado: **0.2.0**. Sigue en evolución (vea las limitaciones). Haga copias de se
 - **Acceso desde el móvil** (opcional, desactivado hasta que se active en Ajustes): un móvil Android emparejado
   puede consultar facturas y clientes, crear y editar facturas y ver el PDF. Los datos siguen en el PC.
   Sirve en la wifi y, con datos móviles, a través de WireGuard o Tailscale, sin abrir puertos del router.
-  Guía: [docs/acceso-movil.md](docs/acceso-movil.md).
+  Guía: [docs/acceso-movil.md](docs/acceso-movil.md). La app Android, en **beta**, se describe en
+  [App Android (beta)](#app-android-beta).
 
 Capturas (con datos inventados) en [`capturas/`](capturas/). Algunas de la 0.0.5:
 
@@ -82,7 +83,8 @@ Capturas (con datos inventados) en [`capturas/`](capturas/). Algunas de la 0.0.5
    `Get-FileHash .\ContFactu-Setup-0.2.0.exe` en PowerShell.
 2. Ejecútelo. Se instala en `C:\Program Files\ContFactu` y crea accesos directos en el menú Inicio y, si lo elige, en el escritorio.
    El instalador no está firmado digitalmente, así que Windows SmartScreen puede avisar: «Más información» → «Ejecutar de todas formas».
-3. **Actualizar**: ejecute el instalador de la versión nueva encima de la anterior.
+3. **Actualizar**: ejecute el instalador de la versión nueva encima de la anterior, **en la misma carpeta** (la que
+   propone). No hace falta desinstalar antes.
    - Si ContFactu está abierto, pide cerrarlo.
    - Los datos se conservan. La primera vez que se abre una versión nueva, ContFactu hace **antes** una copia de seguridad
      automática y después pone al día la base de datos (ver [Comprobar una actualización](#comprobar-una-actualización)).
@@ -105,9 +107,9 @@ Para quedarse tranquilo al actualizar un equipo que ya tiene datos (por ejemplo,
    número de facturas del año y el total de la última factura. (Si quiere, copie además la carpeta `%APPDATA%\ContFactu`
    a un pendrive.)
 2. Cierre ContFactu y ejecute el instalador nuevo.
-3. Abra ContFactu. La ventana debe responder y la pantalla de carga desaparecer. En «Acerca de» debe figurar la versión **0.1.0**.
+3. Abra ContFactu. La ventana debe responder y la pantalla de carga desaparecer. En «Acerca de» debe figurar la versión nueva (ahora, **0.2.0**).
 4. Abra la carpeta `%APPDATA%\ContFactu\copias-automaticas` (pegue la ruta en la barra del Explorador): debe haber un
-   archivo `ContFactu-antes-de-0.1.0-<fecha>.zip`. Es la copia de los datos tal como estaban **antes** de actualizar.
+   archivo `ContFactu-antes-de-<versión>-<fecha>.zip` (por ejemplo, `ContFactu-antes-de-0.2.0-<fecha>.zip`). Es la copia de los datos tal como estaban **antes** de actualizar.
    En la pantalla «Copias de seguridad» aparece en la lista «Copias disponibles».
 5. Compruebe los datos de control del paso 1: mismas empresas, mismas facturas y mismos totales.
 6. Si algo no cuadra, en «Copias de seguridad» pulse «Revisar / restaurar…» junto a esa copia automática. También puede
@@ -169,6 +171,43 @@ Para quedarse tranquilo al actualizar un equipo que ya tiene datos (por ejemplo,
 2. Ajuste si quiere el asunto y el texto. Admiten marcadores como `{numero}`, `{fecha}`, `{total}`, `{cliente}` o `{empresa}`.
 3. En una factura pulse «Enviar por correo…». Se rellena el correo del cliente de su ficha. Revise la vista previa, cambie
    lo que quiera y pulse «Enviar». Nada se envía sin ese clic. El envío (o el error) queda anotado en la factura.
+
+## App Android (beta)
+
+La app **ContFactu para Android** es, de momento, una **versión beta**: cubre lo básico para consultar facturas
+y crear unas rápidas desde el móvil, y puede tener fallos o cambiar. Comparte la numeración con el programa del PC
+(la 0.2.0 del móvil va con la 0.2.0 del PC). Su código está en [`android/`](android/), también bajo GPL v3.
+
+**Qué hace**
+- Consulta las facturas por año, con búsqueda, y su detalle y PDF.
+- Crea y edita facturas. El número y los totales los calcula el PC; el IVA de cada línea es libre (entre 0 % y 100 %).
+- Consulta y busca clientes.
+- Si un dato no vale (NIF, IVA, descuento…), el aviso sale en ese campo y se conserva lo escrito.
+
+**Los datos se quedan en el PC.** La app no guarda facturas, clientes ni copias. En el móvil solo quedan el token
+del dispositivo y la huella del certificado del PC, cifrados con el almacén de claves de Android. El PDF se abre desde
+la caché temporal y se borra al salir. Sin servicios de Google, sin analítica y sin publicidad.
+
+**Instalar**
+1. Descargue `ContFactu-<versión>-android-beta.apk` de la [última versión publicada](https://github.com/LomoXSoft/ContFactu/releases/latest)
+   y compruebe su SHA-256 y la huella del certificado de firma, que figuran en las notas de la versión.
+2. Ábralo en el móvil (Android 8.0 o superior) y permita instalar apps de ese origen cuando lo pida.
+3. Para actualizar, instale la APK nueva encima de la anterior: está firmada con la misma clave.
+
+**Emparejar**
+1. En el PC: *Ajustes → «Permitir acceso desde el móvil»* (viene desactivado). Windows puede preguntar por el
+   cortafuegos: permita solo las **redes privadas**.
+2. En el móvil: escanee el QR que aparece en Ajustes. Sin cámara, «a mano» basta con la dirección IP del PC y el código
+   `XXXX-XXXX`; la huella del certificado se comprueba sola antes de enviar nada.
+3. El código vale 10 minutos y una sola vez. En el PC se ve la lista de dispositivos y se puede revocar cualquiera.
+
+**Con datos móviles** (fuera de la wifi de casa o de la oficina): use una VPN privada entre el móvil y el PC
+(WireGuard o Tailscale). No hace falta abrir puertos del router. Guía: [docs/acceso-movil.md](docs/acceso-movil.md).
+
+**Firma de la APK.** Las APK publicadas se firman con la clave de publicación de LomoXSoft, que se guarda fuera del
+repositorio. Ni la clave ni su contraseña están en GitHub. Gradle lee la firma de un archivo de propiedades fuera de
+git (variable `CONTFACTU_FIRMA`), y quien compile su propia copia sin ese archivo obtiene una APK sin firmar. Detalles en
+[`android/README.md`](android/README.md).
 
 ## Ejecutar desde el código (desarrollo)
 
@@ -250,6 +289,7 @@ Resultado: `instalador\Output\ContFactu-Setup-<versión>.exe`. La versión se de
 | `app/api_movil.py` | API estable para la aplicación Android. |
 | `app/iconos.py` | Iconos SVG propios. |
 | `docs/` | Guía del acceso móvil y contrato de la API. |
+| `android/` | App Android (beta), cliente del acceso móvil (Kotlin y Jetpack Compose). |
 | `instalador/` | PyInstaller, Inno Setup y script de construcción. |
 | `herramientas/` | Datos de demostración y pantalla de carga. |
 | `tests/` | Pruebas (pytest). |
@@ -265,8 +305,8 @@ Resultado: `instalador\Output\ContFactu-Setup-<versión>.exe`. La versión se de
   más pequeña. El resumen del 303 lleva a casillas propias solo los tipos 4, 10 y 21 %; los demás aparecen aparte, para
   revisarlos.
 - No hay factura electrónica (Facturae / B2B) ni modelos oficiales de la AEAT.
-- El acceso desde el móvil (0.2.0) lo atiende este PC y viene desactivado. La aplicación Android se publica
-  aparte. Sin la opción activada, ContFactu no escucha en la red.
+- El acceso desde el móvil (0.2.0) lo atiende este PC y viene desactivado. Sin la opción activada, ContFactu no
+  escucha en la red. La app Android es una **beta**, con menos funciones que el programa del PC.
 - Versión temprana: haga copias de seguridad con frecuencia.
 
 Errores y sugerencias: [Issues](https://github.com/LomoXSoft/ContFactu/issues). Para contribuir, vea [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -286,6 +326,9 @@ Este programa es software libre: puede redistribuirlo y/o modificarlo según los
 de GNU** publicada por la Free Software Foundation, ya sea la versión 3 de la Licencia o (a su elección) cualquier versión
 posterior (GPL-3.0-or-later). Se distribuye con la esperanza de que sea útil, pero **SIN NINGUNA GARANTÍA**; ni siquiera
 la garantía implícita de COMERCIABILIDAD o IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Consulte el archivo [LICENSE](LICENSE).
+
+La app Android usa AndroidX, Jetpack Compose, CameraX, ZXing, OkHttp, kotlinx.serialization y kotlinx.coroutines,
+cada uno con su licencia (Apache 2.0), compatibles con la GPL v3.
 
 Componentes de terceros que se usan al construir el instalador:
 - Python, FastAPI, Uvicorn, Jinja2, ReportLab, dbfread, openpyxl, pywebview, keyring, cryptography y Pillow (dependencia de ReportLab), cada uno con su licencia.
