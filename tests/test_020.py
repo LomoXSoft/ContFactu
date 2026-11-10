@@ -14,6 +14,11 @@ def _puerto_libre():
     s.close()
     return p
 
+@pytest.fixture(autouse=True)
+def _movil_solo_en_este_equipo(monkeypatch):
+    """Ninguna prueba abre el puerto en todas las redes: en el PC de compilación eso dispara el cortafuegos."""
+    monkeypatch.setenv("CONTFACTU_MOVIL_HOST", "127.0.0.1")
+
 @pytest.fixture()
 def entorno(tmp_path, monkeypatch):
     datos = tmp_path / "datos"
@@ -67,19 +72,16 @@ def _rutas(aplicacion):
     return encontradas
 
 def _escucha(port):
-    """True si hay un socket en escucha en 0.0.0.0:port (Linux, /proc/net/tcp)."""
-    hexa = f"{port:04X}"
+    """True si algo acepta TCP en 127.0.0.1:puerto. Vale en Windows y en Linux."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.5)
     try:
-        lineas = Path("/proc/net/tcp").read_text().splitlines()
+        s.connect(("127.0.0.1", port))
+        return True
     except OSError:
-        return None
-    for linea in lineas[1:]:
-        partes = linea.split()
-        local, estado = partes[1], partes[3]
-        ip, p = local.split(":")
-        if p.upper() == hexa and estado == "0A" and ip.upper() == "00000000":
-            return True
-    return False
+        return False
+    finally:
+        s.close()
 
 # -------------------------------------------------------------------------------- valores de origen y red
 def test_desactivado_por_defecto_y_solo_local(con, web, entorno):
@@ -92,6 +94,7 @@ def test_desactivado_por_defecto_y_solo_local(con, web, entorno):
     assert M.HOST_INTERFAZ == "127.0.0.1"
     assert M.config_interfaz(aplicacion_local, 9).host == "127.0.0.1"
     assert movil.HOST_MOVIL == "0.0.0.0"
+    assert movil.host_escucha() == "127.0.0.1"
     assert _escucha(movil.puerto()) is False
     h = web.get("/ajustes").text
     assert "Permitir acceso desde el móvil" in h and "Ajustes" in h
@@ -108,27 +111,23 @@ def test_la_interfaz_sigue_en_local_aunque_el_movil_este_activo(con):
     from app.main import app as aplicacion_local
     _permitir(con)
     assert M.config_interfaz(aplicacion_local, 9).host == "127.0.0.1"
-    movil.activar(con)
-    try:
-        assert movil.enlace()[0] == "0.0.0.0"
-        assert M.config_interfaz(aplicacion_local, 9).host == "127.0.0.1"
-    finally:
-        movil.parar()
-
-def test_activado_escucha_en_todas_las_interfaces(con):
-    from app import movil
+    port = None
     movil.activar(con)
     try:
         host, port = movil.enlace()
-        assert host == "0.0.0.0" and movil.en_marcha()
-        assert _escucha(port) is True
-        socket.create_connection(("127.0.0.1", port), timeout=2).close()
-        externas = [d["ip"] for d in movil.direcciones()]
-        if externas:
-            socket.create_connection((externas[0], port), timeout=2).close()
+        assert host == "127.0.0.1" and _escucha(port) is True
+        assert M.config_interfaz(aplicacion_local, 9).host == "127.0.0.1"
     finally:
         movil.parar()
-        assert not movil.en_marcha() and movil.enlace() is None
+        assert not movil.en_marcha() and (port is None or not _escucha(port))
+
+def test_activado_escucha_en_todas_las_interfaces(monkeypatch):
+    """Comprueba la dirección de producción sin abrir un socket en todas las interfaces."""
+    from app import movil
+    assert movil.host_escucha() == "127.0.0.1"
+    monkeypatch.delenv("CONTFACTU_MOVIL_HOST", raising=False)
+    assert movil.host_escucha() == movil.HOST_MOVIL == "0.0.0.0"
+    assert not movil.en_marcha()
 
 def test_clasifica_wifi_wireguard_y_tailscale():
     from app import movil

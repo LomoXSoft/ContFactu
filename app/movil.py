@@ -18,6 +18,17 @@ import secrets
 
 HOST_MOVIL = "0.0.0.0"          # wifi, WireGuard y Tailscale, sin abrir el router
 PUERTO = 8766
+
+def host_escucha():
+    """Dirección del puerto del móvil. En el programa es siempre 0.0.0.0.
+
+    Las pruebas ponen CONTFACTU_MOVIL_HOST=127.0.0.1 para no abrir un puerto en
+    todas las redes del equipo donde se construye el instalador. Cualquier otro
+    valor se ignora, así que en producción la escucha no cambia.
+    """
+    if os.environ.get("CONTFACTU_MOVIL_HOST") == "127.0.0.1":
+        return "127.0.0.1"
+    return HOST_MOVIL
 CADUCIDAD_SEGUNDOS = 10 * 60
 MAX_FALLOS = 5
 BLOQUEO_SEGUNDOS = 15 * 60
@@ -416,7 +427,7 @@ def en_marcha():
         return bool(servidor and servidor.started and not servidor.should_exit and hilo and hilo.is_alive())
 
 def enlace():
-    """('0.0.0.0', puerto) si el servidor móvil está escuchando; None si no."""
+    """(dirección, puerto) si el servidor móvil está escuchando; None si no."""
     with _lock:
         if not (_estado.get("server") and _estado["server"].started and not _estado["server"].should_exit):
             return None
@@ -460,12 +471,12 @@ def arrancar():
             return _estado.get("enlace")
         _parar_dentro()
         cert, clave = asegurar_certificado()
-        port = puerto()
+        host, port = host_escucha(), puerto()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.set_inheritable(False)
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((HOST_MOVIL, port))
+            sock.bind((host, port))
             sock.listen(128)
             sock.setblocking(False)
         except OSError as ex:
@@ -474,7 +485,7 @@ def arrancar():
                              "programa o indique otro con la variable CONTFACTU_MOVIL_PUERTO.") from ex
         import uvicorn
         from .api_movil import aplicacion
-        config = uvicorn.Config(aplicacion, host=HOST_MOVIL, port=port, log_config=None, access_log=False,
+        config = uvicorn.Config(aplicacion, host=host, port=port, log_config=None, access_log=False,
                                 log_level="warning", server_header=False, timeout_graceful_shutdown=2,
                                 ssl_certfile=str(cert), ssl_keyfile=str(clave), ssl_context_factory=_fabrica_ssl())
         servidor = uvicorn.Server(config)
