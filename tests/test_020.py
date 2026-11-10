@@ -283,7 +283,10 @@ def test_clave_y_token_no_van_en_la_copia(con, entorno, tmp_path):
     _permitir(con)
     movil.asegurar_certificado()
     clave = entorno / "movil" / "clave.pem"
-    assert clave.is_file() and (clave.stat().st_mode & 0o777) == 0o600
+    assert clave.is_file()
+    if os.name == "posix":
+        # En Windows os.chmod no aplica el modo Unix: st_mode queda 0o666. La carpeta del usuario protege el archivo.
+        assert (clave.stat().st_mode & 0o777) == 0o600
     assert b"PRIVATE KEY" not in (entorno / "contfactu.db").read_bytes()
     token = movil.emparejar(con, movil.nuevo_codigo(con)["codigo"], "Copia")["token"]
     z = copias.crear_copia(con, str(tmp_path / "copias"))
