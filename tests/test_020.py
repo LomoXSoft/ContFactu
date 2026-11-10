@@ -209,7 +209,8 @@ def test_qr_lleva_codigo_y_huella(con, web):
     assert r.status_code == 200 and "checked" in r.text and "Emparejar un dispositivo" in r.text
     assert movil.en_marcha()
     pag = web.post("/ajustes/emparejar")
-    assert pag.status_code == 200 and "Código de respaldo" in pag.text and 'id="qr-emparejar"' in pag.text
+    assert pag.status_code == 200 and 'id="codigo-respaldo"' in pag.text and 'id="qr-emparejar"' in pag.text
+    assert "No hace falta teclear la huella" in pag.text
     codigo = re.search(r'id="codigo-respaldo"[^>]*>([^<]+)', pag.text).group(1)
     huella = re.search(r'id="huella-certificado"[^>]*>([^<]+)', pag.text).group(1)
     assert re.fullmatch(r"[A-Z2-9]{4}-[A-Z2-9]{4}", codigo)
@@ -217,9 +218,45 @@ def test_qr_lleva_codigo_y_huella(con, web):
     payload = movil.payload_qr(codigo, [d["ip"] for d in movil.direcciones()], movil.puerto(), huella)
     texto = movil.payload_json(payload)
     assert codigo in texto and huella in texto and '"v":1' in texto and '"app":"ContFactu"' in texto
-    svg = movil.qr_svg(texto)
-    assert svg and svg.count("<rect") > 20
+    import base64, io
+    from PIL import Image
+    png = base64.b64decode(re.search(r'data:image/png;base64,([A-Za-z0-9+/=]+)', pag.text).group(1))
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    im = Image.open(io.BytesIO(png))
+    oscuros = sum(1 for v in im.convert("L").tobytes() if v < 16)
+    assert im.size[0] >= 21 and oscuros > 20
     assert codigo.encode() not in (Path(os.environ["CONTFACTU_DATA"]) / "contfactu.db").read_bytes()
+
+def test_qr_fallido_queda_en_el_registro(con, capsys):
+    from app import movil
+    _permitir(con)
+    movil.asegurar_certificado()
+    def rompe(texto):
+        raise RuntimeError("qr de prueba")
+    original = movil._modulos_qr
+    movil._modulos_qr = rompe
+    try:
+        assert movil.qr_png("hola") is None
+    finally:
+        movil._modulos_qr = original
+    assert "No he podido generar el código QR" in capsys.readouterr().out
+
+def test_confirmacion_manual_ata_la_huella_al_codigo(con, api):
+    from app import movil
+    _permitir(con)
+    movil.asegurar_certificado()
+    codigo = movil.nuevo_codigo(con)["codigo"]
+    huella = movil.huella()
+    bien = api.post("/api/v1/emparejar/confirmar", json={"prueba": movil.prueba_emparejar(codigo, huella)})
+    assert bien.status_code == 200
+    assert bien.json()["confirmacion"] == movil.confirmacion_emparejar(codigo, huella)
+    ajena = "sha256:" + "ab" * 32
+    mala = api.post("/api/v1/emparejar/confirmar", json={"prueba": movil.prueba_emparejar(codigo, ajena)})
+    assert mala.status_code == 401 and "confirmacion" not in mala.json()
+    assert movil.prueba_emparejar("ab12-cd34", huella) == movil.prueba_emparejar("AB12CD34", huella)
+    token = api.post("/api/v1/emparejar", json={"codigo": codigo, "nombre": "A mano"}).json()["token"]
+    assert api.post("/api/v1/emparejar/confirmar", json={"prueba": movil.prueba_emparejar(codigo, huella)}).status_code == 401
+    assert token
 
 # -------------------------------------------------------------------------------- API de facturas
 def _auth(api, con):

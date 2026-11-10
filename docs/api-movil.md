@@ -5,9 +5,10 @@ activó «Permitir acceso desde el móvil». Con la opción apagada no hay puert
 
 Base: `https://{host}:{puerto}/api/v1`
 
-`host` y `puerto` salen del código QR. El PC puede anunciar varias direcciones (wifi, WireGuard,
-Tailscale): se prueban en el orden del QR, con un tiempo corto cada una (2 o 3 segundos). La primera
-que complete el TLS y presente la huella esperada es la buena.
+`host` y `puerto` salen del código QR. En el emparejamiento a mano el puerto, si no se dice otra cosa,
+es el **8766**. El PC puede anunciar varias direcciones (wifi, WireGuard, Tailscale): se prueban en
+el orden del QR, con un tiempo corto cada una (2 o 3 segundos). La primera que complete el TLS y
+supere la comprobación de huella es la buena.
 
 Los importes y los tipos de IVA van en **texto**, con punto decimal (`"121.00"`, `"7.5"`). No se usan
 números de coma flotante. En las peticiones también se admite la coma (`"7,5"`, `"100,00"`).
@@ -52,9 +53,52 @@ Texto UTF-8 con un JSON. El orden de las claves no importa.
 | `codigo` | Código de un solo uso, 8 caracteres `XXXX-XXXX`. Caduca a los 10 minutos. |
 | `huella` | Huella que hay que anclar. |
 
-El mismo código se enseña en el PC como **código de respaldo**, junto con las direcciones, el puerto y
-la huella, por si la cámara no lee el QR. Al escribirlo a mano se ignoran espacios, guiones y
-mayúsculas.
+El mismo código se enseña en el PC en grande, junto con las direcciones. El puerto sale en pantalla y,
+si nadie lo ha cambiado, es el 8766. La huella viaja dentro del QR; **no hay que teclearla**.
+
+## Emparejar a mano (sin QR)
+
+La persona escribe en el móvil solo dos cosas: la dirección del PC (IP o nombre) y el código
+`XXXX-XXXX`. El puerto es 8766 salvo que la pantalla del PC muestre otro. El código se normaliza
+en los dos lados: mayúsculas, sin espacios ni guiones (`AB12-CD34` y `ab12cd34` son el mismo).
+
+La huella no se teclea, pero tampoco se acepta el primer certificado que aparezca. El móvil tiene
+que comprobar que el certificado que está viendo es el de este PC **antes** de enviar el código y
+**antes** de guardar la huella como ancla.
+
+1. Conecta por TLS a `https://{direccion}:{puerto}` sin fiarse todavía del certificado. No comprueba
+   el nombre. Calcula la huella canónica del certificado recibido (SHA-256 del DER, `sha256:` y 64
+   hexadecimales en minúsculas).
+2. Calcula la prueba, en hexadecimal en minúsculas (64 caracteres):
+
+   `HMAC-SHA256(clave = código normalizado en UTF-8, mensaje = UTF-8 de "contfactu-prueba-v1\n" + huella canónica)`
+
+   La clave del HMAC es el código de 8 letras, no la huella. El mensaje empieza por el texto fijo,
+   un salto de línea (`\n`, un byte 0A) y después la huella completa, prefijo `sha256:` incluido.
+3. `POST /api/v1/emparejar/confirmar` con `{"prueba": "<64 hex>"}`. Todavía no envía el código ni pide
+   el token.
+4. Si la prueba coincide con la que este PC calcula usando **su** certificado, responde `200`:
+
+   `{"confirmacion": "<64 hex>"}`
+
+   donde `confirmacion` es
+
+   `HMAC-SHA256(clave = código normalizado en UTF-8, mensaje = UTF-8 de "contfactu-confirmar-v1\n" + huella canónica)`
+
+   Si la prueba se hizo con otro certificado, o el código no cuadra, la respuesta es `401` y **no**
+   trae ningún HMAC. Ese fallo gasta un intento (cinco, y luego `429` con `reintentar_en`, igual que
+   un código mal escrito). El código sigue siendo de un solo uso y caduca a los 10 minutos: este
+   paso no lo consume. Si no hay un código vigente en memoria (se cerró ContFactu, caducó o ya se
+   canjeó), la respuesta es también `401` y no gasta intento.
+5. El móvil calcula esa misma confirmación con el código que escribió la persona y con la huella del
+   certificado que él ha visto. Si no coincide, cierra, no ancla esa huella y no llama a
+   `/emparejar`. Un intermediario que presente su propio certificado no puede fabricar la
+   confirmación: el PC solo la calcula para su huella, y solo después de una prueba válida.
+6. Si coincide, el móvil guarda esa huella como ancla y ya puede llamar a `POST /api/v1/emparejar`
+   con el código. A partir de ahí exige que todo certificado coincida con la huella anclada.
+
+El código en claro no se guarda en la base: el PC lo recuerda en memoria solo mientras no caduca y
+nadie lo ha canjeado. Si se cierra ContFactu, hay que generar otro código en Ajustes.
 
 ## Emparejar
 

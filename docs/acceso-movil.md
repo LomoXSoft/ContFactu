@@ -13,10 +13,11 @@ La aplicación Android se publica aparte. Este texto es para quien usa el progra
 
 1. En ContFactu, abra **Ajustes**.
 2. Marque **Permitir acceso desde el móvil** y pulse **Guardar**.
-3. Pulse **Emparejar un dispositivo**. Aparecen un código QR, un código de respaldo (por si la cámara
-   falla), las direcciones de este equipo, el puerto y la huella del certificado.
-4. En el móvil, escanee el QR. La aplicación tiene que comprobar que la huella del certificado es la
-   misma que se ve en el PC. Si no coincide, no debe continuar.
+3. Pulse **Emparejar un dispositivo**. Aparecen un código QR, el código (por si la cámara falla) y
+   las direcciones de este equipo. El puerto, si no se ha cambiado, es el 8766.
+4. En el móvil, escanee el QR. Si no puede, escriba una dirección de este equipo y el código: no hace
+   falta teclear la huella. La aplicación la comprueba con el código antes de guardar el acceso. Si
+   no cuadra, no continúa.
 5. El móvil queda en la lista, con la fecha del último acceso. **Revocar** corta el acceso de ese
    aparato. Para volver a usarlo hay que emparejarlo otra vez.
 
@@ -62,6 +63,6 @@ del correo sigue en el Administrador de credenciales de Windows.
 - ContFactu tiene que estar abierto.
 - La opción tiene que seguir marcada.
 - El móvil y el PC tienen que verse: misma wifi, o misma VPN.
-- La huella del certificado tiene que ser la del QR. Si borró la carpeta `movil` de los datos, hay que
-  emparejar de nuevo.
+- La aplicación no continúa si el certificado no es el de este PC. Si borró la carpeta `movil` de los
+  datos, hay que emparejar de nuevo.
 - Un dispositivo revocado tiene que emparejarse otra vez.

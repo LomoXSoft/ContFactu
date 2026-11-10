@@ -22,6 +22,9 @@ consumirá (`docs/api-movil.md`).
 - Servidor aparte, solo con la API del móvil, cifrado con un certificado autofirmado. La huella SHA-256
   va en el QR para que el móvil la ancle. El token de cada dispositivo se guarda solo como hash.
 - El emparejamiento se bloquea tras 5 códigos incorrectos.
+- Emparejamiento a mano: dirección del equipo y código `XXXX-XXXX`. El puerto es el 8766 si no se ha
+  cambiado. La huella no se teclea; el móvil la comprueba con `POST /api/v1/emparejar/confirmar`
+  antes de enviar el código y de anclarla (`docs/api-movil.md`).
 - Escucha en la wifi y en una VPN privada (WireGuard o Tailscale) sin abrir puertos del router.
   Guía: `docs/acceso-movil.md`.
 - API 1: empresas, facturas (consultar, crear, editar y PDF), clientes y búsqueda. El IVA de cada línea
@@ -38,6 +41,8 @@ consumirá (`docs/api-movil.md`).
   y se conserva lo escrito. El fallo del re-render ya estaba en la 0.1.0.
 - Un tipo de IVA, un recargo de equivalencia o un descuento en porcentaje solo se acepta entre 0 % y 100 %,
   ambos incluidos, con los decimales que se escriban. Vale en el formulario, en la ficha del cliente y en la API del móvil.
+- El código QR de Ajustes se pinta como imagen PNG. Si no se puede generar, el motivo queda en
+  `contfactu.log` y en pantalla sigue el código para escribirlo a mano.
 
 ### Dependencias
 - `cryptography`, para crear el certificado del acceso móvil. No se usa mientras la opción está desactivada.

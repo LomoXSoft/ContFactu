@@ -947,7 +947,6 @@ async def ajustes_guardar(request: Request):
 async def ajustes_emparejar(request: Request):
     if not _solo_este_equipo(request):
         return _rechazo_remoto()
-    from markupsafe import Markup
     from . import movil
     con = db()
     if not movil.activado(con):
@@ -957,12 +956,14 @@ async def ajustes_emparejar(request: Request):
         gen = movil.nuevo_codigo(con)
     except movil.ErrorMovil as ex:
         return tpl.TemplateResponse(request, "ajustes.html", _ctx_ajustes(con, error=str(ex)), status_code=400)
+    import base64
     dirs = movil.direcciones()
     huella = movil.huella()
     payload = movil.payload_json(movil.payload_qr(gen["codigo"], [d["ip"] for d in dirs], movil.puerto(), huella or ""))
-    svg = movil.qr_svg(payload)
+    png = movil.qr_png(payload)
     return tpl.TemplateResponse(request, "ajustes.html", _ctx_ajustes(
-        con, codigo=gen["codigo"], expira=gen["expira"].strftime("%H:%M"), qr=Markup(svg) if svg else None))
+        con, codigo=gen["codigo"], expira=gen["expira"].strftime("%H:%M"),
+        qr=base64.b64encode(png).decode("ascii") if png else None))
 
 @app.post("/ajustes/revocar")
 async def ajustes_revocar(request: Request):

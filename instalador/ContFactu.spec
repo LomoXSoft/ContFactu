@@ -43,8 +43,9 @@ a = Analysis(
            (os.path.join(SPECPATH, "7zip", "License.txt"), "7zip"),
            (ICONO, "."), (os.path.join(SPECPATH, "contfactu.png"), ".")] + collect_data_files("webview"),
     hiddenimports=collect_submodules("uvicorn") + collect_submodules("app") + collect_submodules("webview")
-                  + ["herramientas", "herramientas.splash", "clr", "openpyxl", "reportlab.graphics.barcode.common",
+                  + ["herramientas", "herramientas.splash", "clr", "openpyxl",                      "reportlab.graphics.barcode.common",
                      "reportlab.graphics.barcode.code128", "reportlab.graphics.barcode.qr",
+                     "reportlab.graphics.barcode.qrencoder", "PIL.Image",
                      # contraseña del correo en el Administrador de credenciales de Windows
                      "keyring", "keyring.backends", "keyring.backends.Windows", "keyring.backends.fail",
                      "cryptography", "cryptography.x509", "cryptography.hazmat.primitives.asymmetric.ec",

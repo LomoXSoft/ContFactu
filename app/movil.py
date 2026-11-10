@@ -295,6 +295,50 @@ def _registrar_fallo(con):
             hasta = datetime.datetime.now() + datetime.timedelta(seconds=BLOQUEO_SEGUNDOS)
             _poner(con, "movil_bloqueo_hasta", hasta.isoformat(timespec="seconds"))
 
+# El código en claro solo vive en memoria mientras se puede emparejar. La base guarda el hash.
+_codigo_vivo = {"codigo": None, "expira": None}
+_codigo_lock = threading.Lock()
+
+def _recordar_codigo(visible, expira):
+    with _codigo_lock:
+        _codigo_vivo["codigo"] = visible
+        _codigo_vivo["expira"] = expira
+
+def _olvidar_codigo():
+    with _codigo_lock:
+        _codigo_vivo["codigo"] = None
+        _codigo_vivo["expira"] = None
+
+def _codigo_en_memoria():
+    with _codigo_lock:
+        codigo, expira = _codigo_vivo["codigo"], _codigo_vivo["expira"]
+        if not codigo or expira is None or datetime.datetime.now() >= expira:
+            _codigo_vivo["codigo"] = None
+            _codigo_vivo["expira"] = None
+            return None
+        return codigo
+
+def huella_canonica(valor):
+    """«sha256:» + 64 hex minúsculas, o None si no es una huella."""
+    h = _hex_huella(valor)
+    return None if not h else "sha256:" + h
+
+def _hmac_codigo(codigo, prefijo, huella):
+    canon = huella_canonica(huella)
+    if not canon:
+        return None
+    clave = _normalizar_codigo(codigo).encode("utf-8")
+    mensaje = (prefijo + "\n" + canon).encode("utf-8")
+    return hmac.new(clave, mensaje, hashlib.sha256).hexdigest()
+
+def prueba_emparejar(codigo, huella):
+    """HMAC que el móvil calcula con el código y la huella del certificado que acaba de ver."""
+    return _hmac_codigo(codigo, "contfactu-prueba-v1", huella)
+
+def confirmacion_emparejar(codigo, huella):
+    """HMAC de respuesta. Solo cuadra si el móvil usó la huella del certificado de este PC."""
+    return _hmac_codigo(codigo, "contfactu-confirmar-v1", huella)
+
 def nuevo_codigo(con):
     """Genera un código de un solo uso y guarda solo su hash. Devuelve el texto visible (XXXX-XXXX) y la caducidad."""
     if not activado(con):
@@ -307,7 +351,34 @@ def nuevo_codigo(con):
     with con:
         _poner(con, "movil_codigo_hash", _hash_codigo(visible))
         _poner(con, "movil_codigo_expira", expira.isoformat(timespec="seconds"))
+    _recordar_codigo(visible, expira)
     return {"codigo": visible, "expira": expira}
+
+def confirmar_emparejamiento(con, prueba):
+    """Comprueba la prueba del móvil y, si cuadra con la huella de este PC, devuelve la confirmación.
+
+    Una prueba hecha con otro certificado no obtiene ningún HMAC: así un intermediario no recibe
+    material para comprobar suposiciones del código. Un fallo cuenta como intento de emparejamiento.
+    """
+    if not activado(con):
+        raise ErrorMovil("El acceso desde el móvil está desactivado.")
+    seg = segundos_bloqueo(con)
+    if seg:
+        raise EmparejamientoBloqueado(seg)
+    codigo = _codigo_en_memoria()
+    if not codigo:
+        # Sin código en memoria no hay nada que adivinar: no se gasta un intento.
+        raise CodigoRechazado()
+    propia = huella()
+    esperada = prueba_emparejar(codigo, propia) if propia else None
+    recibida = (prueba or "").strip().lower()
+    if not esperada or len(recibida) != len(esperada) or not hmac.compare_digest(recibida, esperada):
+        _registrar_fallo(con)
+        seg = segundos_bloqueo(con)
+        if seg:
+            raise EmparejamientoBloqueado(seg)
+        raise CodigoRechazado()
+    return confirmacion_emparejar(codigo, propia)
 
 def emparejar(con, codigo, nombre):
     """Canjea el código por un token. El token sale una sola vez; aquí se guarda su hash."""
@@ -338,6 +409,7 @@ def emparejar(con, codigo, nombre):
         _poner(con, "movil_fallos", "0")
         cur = con.execute("INSERT INTO dispositivos_movil(nombre, token_hash, creado, ultimo_acceso) VALUES(?,?,?,?)",
                           (nombre, _hash_token(token), ahora, ahora))
+    _olvidar_codigo()
     return {"token": token, "dispositivo_id": cur.lastrowid, "nombre": nombre}
 
 def desbloquear(con):
@@ -380,16 +452,54 @@ def payload_json(payload):
     """JSON compacto y estable. El orden de las claves no forma parte del contrato: hay que interpretarlo como JSON."""
     return json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
 
+def _log_qr(exc):
+    """El fallo queda en contfactu.log (en el .exe la salida estándar se redirige allí)."""
+    import traceback
+    print(time.strftime("%Y-%m-%d %H:%M:%S"),
+          "No he podido generar el código QR de emparejamiento:", repr(exc), flush=True)
+    traceback.print_exc()
+
+def _modulos_qr(texto):
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    q = QrCodeWidget(texto, barLevel="M")
+    q.qr.make()
+    modulos = q.qr.modules
+    if not modulos:
+        raise RuntimeError("el código QR no tiene módulos")
+    return modulos
+
+def qr_png(texto):
+    """PNG del QR (nivel M). None si no se puede generar; el motivo queda en el registro."""
+    try:
+        import io
+        from PIL import Image
+        modulos = _modulos_qr(texto)
+        n = len(modulos)
+        celda, margen = 8, 2
+        lado = (n + margen * 2) * celda
+        img = Image.new("RGB", (lado, lado), "white")
+        pix = img.load()
+        for y, fila in enumerate(modulos):
+            for x, oscuro in enumerate(fila):
+                if not oscuro:
+                    continue
+                x0, y0 = (x + margen) * celda, (y + margen) * celda
+                for dy in range(celda):
+                    for dx in range(celda):
+                        pix[x0 + dx, y0 + dy] = (0, 0, 0)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception as ex:
+        _log_qr(ex)
+        return None
+
 def qr_svg(texto):
     """SVG del QR (nivel M). None si no se puede generar: el código de respaldo sigue en pantalla."""
     try:
-        from reportlab.graphics.barcode.qr import QrCodeWidget
-        q = QrCodeWidget(texto, barLevel="M")
-        q.qr.make()
-        modulos = q.qr.modules
-    except Exception:
-        return None
-    if not modulos:
+        modulos = _modulos_qr(texto)
+    except Exception as ex:
+        _log_qr(ex)
         return None
     n = len(modulos)
     modulo, margen = 4, 2
@@ -516,6 +626,7 @@ def activar(con):
 def desactivar(con):
     with con:
         _poner(con, "movil_activo", "0")
+    _olvidar_codigo()
     parar()
 
 def sincronizar():

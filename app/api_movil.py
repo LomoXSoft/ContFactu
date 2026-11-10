@@ -22,6 +22,7 @@ API_VERSION = 1
 # Lista cerrada. Un endpoint nuevo tiene que añadirse aquí y en docs/api-movil.md.
 RUTAS = {
     ("GET", "/api/v1/salud"),
+    ("POST", "/api/v1/emparejar/confirmar"),
     ("POST", "/api/v1/emparejar"),
     ("GET", "/api/v1/empresas"),
     ("GET", "/api/v1/empresas/{eid}/facturas"),
@@ -265,6 +266,24 @@ def _cliente_json(c):
 def salud():
     from . import __version__
     return {"nombre": "ContFactu", "api": API_VERSION, "version": __version__}
+
+@aplicacion.post("/api/v1/emparejar/confirmar")
+async def emparejar_confirmar(request: Request):
+    """Paso manual: el móvil demuestra que vio el certificado de este PC sin enviar todavía el código."""
+    body = await _json(request)
+    con = _conectar()
+    try:
+        try:
+            return {"confirmacion": movil.confirmar_emparejamiento(con, body.get("prueba"))}
+        except movil.CodigoRechazado:
+            raise HTTPException(401, "El código no es válido o ha caducado.")
+        except movil.EmparejamientoBloqueado as ex:
+            raise HTTPException(429, {"error": "Demasiados intentos. El emparejamiento está bloqueado un momento.",
+                                       "reintentar_en": ex.segundos})
+        except movil.ErrorMovil as ex:
+            raise HTTPException(400, str(ex))
+    finally:
+        con.close()
 
 @aplicacion.post("/api/v1/emparejar")
 async def emparejar(request: Request):
