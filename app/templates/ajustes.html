@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block t %}Ajustes — ContFactu {{VERSION}}{% endblock %}{% block c %}
+{% if ok == 'activado' %}<div class="card okmsg">✔ Acceso desde el móvil permitido. Solo los dispositivos que empareje podrán conectar.</div>{% endif %}
+{% if ok == 'desactivado' %}<div class="card okmsg">✔ Acceso desde el móvil desactivado.</div>{% endif %}
+{% if ok == 'revocado' %}<div class="card okmsg">✔ Dispositivo revocado. Ya no puede conectar.</div>{% endif %}
+{% if ok == 'desbloqueado' %}<div class="card okmsg">✔ Emparejamiento desbloqueado.</div>{% endif %}
+{% if error %}<div class="card aviso error">{{error}}</div>{% endif %}
+
+<div class="card"><h2>{{ico('ajustes',26)}}Ajustes</h2>
+<form method="post" action="/ajustes">
+<label style="display:flex;gap:.45rem;align-items:center;font-size:1rem;color:inherit"><input type="checkbox" name="permitir" value="1" style="width:auto" {{'checked' if activo else ''}}>Permitir acceso desde el móvil</label>
+{% if not activo %}<p class="muted" style="margin:.6rem 0 0">Desactivado, como viene de origen. ContFactu solo se abre en este equipo.</p>
+{% else %}<p class="muted" style="margin:.6rem 0 0">El móvil se conecta a este equipo por la wifi o por una VPN privada (WireGuard o Tailscale). No abra puertos del router: los datos siguen en este PC.</p>{% endif %}
+<p style="margin:.8rem 0 0"><button class="btn">{{ico('guardar')}}Guardar</button></p></form></div>
+
+{% if activo %}
+<div class="card"><h3>{{ico('movil',22)}}Emparejar un dispositivo</h3>
+{% if not en_marcha %}<p class="aviso">La opción está activada, pero el acceso no está escuchando. Guarde de nuevo para reintentarlo.</p>{% endif %}
+{% if huella %}<p>Huella del certificado <span class="muted">(la aplicación debe comprobar que coincide)</span><br>
+<code id="huella-certificado" style="word-break:break-all">{{huella}}</code></p>{% else %}
+<p class="aviso">Falta el certificado. Guarde de nuevo para crearlo.</p>{% endif %}
+<p>Puerto <b id="puerto-movil">{{puerto}}</b>. {% if direcciones %}Direcciones de este equipo:{% else %}No hay una dirección de red disponible. Conecte este equipo a la wifi o a la VPN y vuelva a generar el código.{% endif %}</p>
+{% if direcciones %}<ul id="lista-direcciones" style="margin:.2rem 0 .6rem">{% for d in direcciones %}<li><b>{{d.ip}}</b> <span class="muted">{{d.etiqueta}}</span></li>{% endfor %}</ul>{% endif %}
+<p class="muted" style="font-size:.86rem">Si Windows pregunta, permita ContFactu solo en redes privadas. Con datos móviles hace falta la misma VPN en el móvil y en este equipo; no hace falta abrir el router.</p>
+{% if bloqueo %}<p class="aviso">Demasiados intentos de emparejamiento. Está bloqueado hasta las {{bloqueo[11:16]}}.</p>
+<form method="post" action="/ajustes/desbloquear"><button class="btn sec">{{ico('aceptar')}}Desbloquear emparejamiento</button></form>
+{% else %}
+<form method="post" action="/ajustes/emparejar"><button class="btn">{{ico('movil')}}Emparejar un dispositivo</button></form>
+{% endif %}
+{% if codigo %}
+<div id="emparejamiento" style="margin-top:1rem">
+{% if qr %}<div id="qr-emparejar" style="background:#fff;display:inline-block;padding:.4rem;border:1px solid #e4e7ec;border-radius:8px">{{qr}}</div>{% endif %}
+<p>Código de respaldo<br><b id="codigo-respaldo" style="font-size:1.6rem;letter-spacing:.12em">{{codigo}}</b></p>
+<p class="muted">Caduca a las {{expira}}. Si sale de esta página tendrá que generar otro: este deja de valer. En el móvil, la huella del certificado tiene que ser la de arriba.</p>
+</div>{% endif %}
+</div>
+
+<div class="card"><h3>Dispositivos emparejados</h3>
+<table id="lista-dispositivos"><tr><th>Dispositivo</th><th>Último acceso</th><th></th></tr>
+{% for d in dispositivos %}<tr><td>{{d.nombre}}<br><span class="muted" style="font-size:.8rem">Emparejado el {{d.creado[:10]|fecha}}</span></td>
+<td>{% if d.ultimo_acceso %}{{d.ultimo_acceso[:10]|fecha}} a las {{d.ultimo_acceso[11:16]}}{% else %}—{% endif %}</td>
+<td><form method="post" action="/ajustes/revocar" style="margin:0" onsubmit="return confirm('¿Revocar este dispositivo? Dejará de poder conectar.');">
+<input type="hidden" name="id" value="{{d.id}}"><button class="btn peligro peq">{{ico('cancelar')}}Revocar</button></form></td></tr>
+{% else %}<tr><td colspan="3" class="muted">Ningún dispositivo emparejado.</td></tr>{% endfor %}</table></div>
+{% endif %}
+{% endblock %}

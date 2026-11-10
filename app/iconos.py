@@ -86,6 +86,12 @@ _SVG = {
                f'<circle cx="12" cy="17.6" r="1.25" fill="#1b1b1b"/>'),
     "contfactu": (f'<path d="M5 2.5h10.5l3.5 3.5v15.5H5z" fill="#fff" {K}/><rect x="7.5" y="7" width="7.5" height="7.5" fill="#1f9d3a" {K}/>'
                   f'<path d="M7.5 17h9M7.5 19h6" stroke="#1f4fd1" stroke-width="1.2"/>'),
+    "ajustes": (f'<circle cx="12" cy="12" r="3" fill="#e9d38c" {K}/>'
+                f'<path d="M12 2.6v2.3M12 19.1V21.4M2.6 12h2.3M19.1 12h2.3M5.1 5.1l1.6 1.6M17.3 17.3l1.6 1.6M18.9 5.1l-1.6 1.6M6.7 17.3l-1.6 1.6" '
+                f'fill="none" stroke="#1b1b1b" stroke-width="1.7" stroke-linecap="round"/>'),
+    "movil": (f'<rect x="7" y="2.2" width="10" height="19.6" rx="1.6" fill="#fff" {K}/>'
+              f'<rect x="8.6" y="5" width="6.8" height="9.2" fill="#1f4fd1" {K}/>'
+              f'<circle cx="12" cy="18.4" r="0.9" fill="#1b1b1b"/>'),
 }
 
 TIPO_ICONO = {"F": "factura", "P": "presupuesto", "A": "albaran", "G": "gasto"}

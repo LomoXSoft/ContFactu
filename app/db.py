@@ -130,6 +130,13 @@ CREATE TABLE IF NOT EXISTS envios (       -- 0.0.4: registro de correos enviados
   id INTEGER PRIMARY KEY, documento_id INTEGER REFERENCES documentos(id) ON DELETE CASCADE,
   fecha_hora TEXT, para TEXT, copia TEXT, asunto TEXT, adjunto TEXT, resultado TEXT, error TEXT
 );
+CREATE TABLE IF NOT EXISTS dispositivos_movil (  -- 0.2.0: móviles emparejados. Solo el hash del token, nunca el token.
+  id INTEGER PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  creado TEXT NOT NULL,
+  ultimo_acceso TEXT
+);
 """
 
 COLUMNAS_NUEVAS = {  # migración de bases creadas con versiones anteriores
@@ -141,7 +148,7 @@ COLUMNAS_NUEVAS = {  # migración de bases creadas con versiones anteriores
                  "ivas TEXT", "logo TEXT", "creada TEXT", "re_tasas TEXT"],
 }
 
-ESQUEMA = 4   # versión del esquema (sube cuando cambian tablas o columnas); se guarda en ajustes.esquema
+ESQUEMA = 5   # versión del esquema (sube cuando cambian tablas o columnas); se guarda en ajustes.esquema
 _PREPARADAS = set()
 
 def _migrar_columnas(con):

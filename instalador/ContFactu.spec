@@ -47,6 +47,8 @@ a = Analysis(
                      "reportlab.graphics.barcode.code128", "reportlab.graphics.barcode.qr",
                      # contraseña del correo en el Administrador de credenciales de Windows
                      "keyring", "keyring.backends", "keyring.backends.Windows", "keyring.backends.fail",
+                     "cryptography", "cryptography.x509", "cryptography.hazmat.primitives.asymmetric.ec",
+                     "cryptography.hazmat.primitives.serialization",
                      "win32ctypes", "win32ctypes.pywin32", "win32ctypes.pywin32.win32cred", "win32ctypes.core"],
     excludes=["pytest", "PIL.ImageQt", "PyQt5", "PyQt6", "PySide2", "PySide6", "numpy", "gi", "cefpython3"],
     noarchive=False,

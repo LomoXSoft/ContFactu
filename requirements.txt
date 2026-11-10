@@ -11,3 +11,5 @@ openpyxl>=3.1
 # tiene que seguir en _ventana (tests/test_010.py); si vuelve a ser pública, Windows se cuelga al arrancar.
 pywebview>=5.0
 keyring>=24
+# Certificado del acceso móvil (0.2.0). Solo se usa si el usuario activa la opción.
+cryptography>=42

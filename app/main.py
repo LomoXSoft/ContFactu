@@ -826,8 +826,111 @@ async def copias_restaurar(request: Request):
         import shutil
         shutil.rmtree(os.path.dirname(ruta), ignore_errors=True)
     SESION["alertas_ocultas"].clear()
+    try:
+        from . import movil
+        movil.sincronizar()   # la copia puede traer la opción activada o apagada; el puerto tiene que coincidir
+    except Exception:
+        pass
     return tpl.TemplateResponse(request, "restaurado.html", {"info": info, "previa": str(previa) if previa else None,
                                                              "hay": bool(repo.empresas(db()))})
+
+# ------------------------------------------------------------------------------------------------ 0.2.0: acceso desde el móvil (opcional, desactivado de origen)
+def _solo_este_equipo(request):
+    """La pantalla de ajustes no se sirve más que en local. Un formulario de otra web tampoco puede activarla."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "testclient"):
+        return False
+    origen = request.headers.get("origin")
+    if origen:
+        from urllib.parse import urlparse
+        if urlparse(origen).hostname not in ("127.0.0.1", "localhost", "::1"):
+            return False
+    if (request.headers.get("sec-fetch-site") or "").lower() == "cross-site":
+        return False
+    return True
+
+def _rechazo_remoto():
+    return Response("Esta pantalla solo está disponible en este equipo.", status_code=403, media_type="text/plain")
+
+def _ctx_ajustes(con, **extra):
+    from . import movil
+    activo = movil.activado(con)
+    ctx = {"activo": activo, "hay": bool(repo.empresas(con)), "ok": "", "error": "",
+           "dispositivos": movil.listar(con) if activo else [],
+           "direcciones": movil.direcciones() if activo else [],
+           "puerto": movil.puerto() if activo else None,
+           "huella": movil.huella() if activo else None,
+           "bloqueo": movil.bloqueo_hasta(con) if activo else None,
+           "en_marcha": movil.en_marcha() if activo else False,
+           "codigo": None, "qr": None, "expira": None}
+    ctx.update(extra)
+    return ctx
+
+@app.get("/ajustes", response_class=HTMLResponse)
+def ajustes_ver(request: Request, ok: str = ""):
+    if not _solo_este_equipo(request):
+        return _rechazo_remoto()
+    return tpl.TemplateResponse(request, "ajustes.html", _ctx_ajustes(db(), ok=ok))
+
+@app.post("/ajustes", response_class=HTMLResponse)
+async def ajustes_guardar(request: Request):
+    if not _solo_este_equipo(request):
+        return _rechazo_remoto()
+    from . import movil
+    f = await request.form()
+    con = db()
+    querer = f.get("permitir") == "1"
+    try:
+        if querer:
+            movil.activar(con)
+        else:
+            movil.desactivar(con)
+    except movil.ErrorMovil as ex:
+        return tpl.TemplateResponse(request, "ajustes.html", _ctx_ajustes(con, error=str(ex)), status_code=400)
+    return RedirectResponse("/ajustes?ok=" + ("activado" if querer else "desactivado"), status_code=303)
+
+@app.post("/ajustes/emparejar", response_class=HTMLResponse)
+async def ajustes_emparejar(request: Request):
+    if not _solo_este_equipo(request):
+        return _rechazo_remoto()
+    from markupsafe import Markup
+    from . import movil
+    con = db()
+    if not movil.activado(con):
+        return tpl.TemplateResponse(request, "ajustes.html",
+                                    _ctx_ajustes(con, error="El acceso desde el móvil está desactivado."), status_code=400)
+    try:
+        gen = movil.nuevo_codigo(con)
+    except movil.ErrorMovil as ex:
+        return tpl.TemplateResponse(request, "ajustes.html", _ctx_ajustes(con, error=str(ex)), status_code=400)
+    dirs = movil.direcciones()
+    huella = movil.huella()
+    payload = movil.payload_json(movil.payload_qr(gen["codigo"], [d["ip"] for d in dirs], movil.puerto(), huella or ""))
+    svg = movil.qr_svg(payload)
+    return tpl.TemplateResponse(request, "ajustes.html", _ctx_ajustes(
+        con, codigo=gen["codigo"], expira=gen["expira"].strftime("%H:%M"), qr=Markup(svg) if svg else None))
+
+@app.post("/ajustes/revocar")
+async def ajustes_revocar(request: Request):
+    if not _solo_este_equipo(request):
+        return _rechazo_remoto()
+    from . import movil
+    f = await request.form()
+    try:
+        did = int(f.get("id") or "")
+    except ValueError:
+        raise ErrorNegocio("Elija el dispositivo que quiere revocar.")
+    con = db()
+    movil.revocar(con, did)
+    return RedirectResponse("/ajustes?ok=revocado", status_code=303)
+
+@app.post("/ajustes/desbloquear")
+async def ajustes_desbloquear(request: Request):
+    if not _solo_este_equipo(request):
+        return _rechazo_remoto()
+    from . import movil
+    movil.desbloquear(db())
+    return RedirectResponse("/ajustes?ok=desbloqueado", status_code=303)
 
 # ------------------------------------------------------------------------------------------------ 0.0.5: buscador
 @app.get("/e/{eid}/buscar", response_class=HTMLResponse)

@@ -12,7 +12,7 @@ Interfaz en español, en su propia ventana (Edge WebView2) o en el navegador. Lo
 en `%APPDATA%\ContFactu` (base de datos SQLite). No se envía nada a Internet, salvo las facturas que usted mande por correo
 con su propio servidor de correo, y solo cuando pulsa «Enviar».
 
-Estado: **0.1.0**. Sigue en evolución (vea las limitaciones). Haga copias de seguridad.
+Estado: **0.2.0**. Sigue en evolución (vea las limitaciones). Haga copias de seguridad.
 
 ![Primera pantalla de ContFactu](capturas/28_v003_bienvenida.png)
 
@@ -56,6 +56,10 @@ Estado: **0.1.0**. Sigue en evolución (vea las limitaciones). Haga copias de se
 - **Restaurar desde la lista de copias**, con vista previa del contenido (empresas, documentos, fecha y versión).
 - **Buscador**: una casilla en la barra superior (o `Ctrl+K`) que encuentra clientes, proveedores, documentos (por número,
   nombre, NIF, importe o concepto) y productos de la empresa abierta.
+- **Acceso desde el móvil** (opcional, desactivado hasta que se active en Ajustes): un móvil Android emparejado
+  puede consultar facturas y clientes, crear y editar facturas y ver el PDF. Los datos siguen en el PC.
+  Sirve en la wifi y, con datos móviles, a través de WireGuard o Tailscale, sin abrir puertos del router.
+  Guía: [docs/acceso-movil.md](docs/acceso-movil.md).
 
 Capturas (con datos inventados) en [`capturas/`](capturas/). Algunas de la 0.0.5:
 
@@ -75,7 +79,7 @@ Capturas (con datos inventados) en [`capturas/`](capturas/). Algunas de la 0.0.5
 
 1. Descargue `ContFactu-Setup-<versión>.exe` de la [última versión publicada](https://github.com/LomoXSoft/ContFactu/releases/latest).
    Si quiere, compruebe su SHA-256, que figura en las notas de la versión:
-   `Get-FileHash .\ContFactu-Setup-0.1.0.exe` en PowerShell.
+   `Get-FileHash .\ContFactu-Setup-0.2.0.exe` en PowerShell.
 2. Ejecútelo. Se instala en `C:\Program Files\ContFactu` y crea accesos directos en el menú Inicio y, si lo elige, en el escritorio.
    El instalador no está firmado digitalmente, así que Windows SmartScreen puede avisar: «Más información» → «Ejecutar de todas formas».
 3. **Actualizar**: ejecute el instalador de la versión nueva encima de la anterior.
@@ -86,6 +90,11 @@ Capturas (con datos inventados) en [`capturas/`](capturas/). Algunas de la 0.0.5
 4. **Desinstalar**: desde *Configuración → Aplicaciones*. Los datos de `%APPDATA%\ContFactu` se conservan.
 
 ### Comprobar una actualización
+
+La **0.2.0** añade el acceso desde el móvil, desactivado hasta que se encienda en Ajustes. Quien actualiza
+desde la 0.1.0 no nota ningún cambio de uso: la ventana sigue escuchando solo en este equipo. La primera
+apertura hace la copia `ContFactu-antes-de-0.2.0-<fecha>.zip` y deja los datos donde estaban. En «Acerca de»
+debe figurar **0.2.0**.
 
 La **0.1.0** corrige un bloqueo al abrir en Windows: con la 0.0.5 la ventana podía quedarse «No responde» justo al
 arrancar, con la pantalla de carga todavía delante, y había que forzar el cierre. No cambia el uso del programa.
@@ -178,7 +187,8 @@ Variables de entorno útiles:
 | --- | --- |
 | `CONTFACTU_DATA` | Carpeta de datos. |
 | `CONTFACTU_DB` | Ruta de la base de datos. |
-| `CONTFACTU_PORT` | Puerto. |
+| `CONTFACTU_PORT` | Puerto de la ventana (solo en este equipo). |
+| `CONTFACTU_MOVIL_PUERTO` | Puerto del acceso móvil, si está activado. Por defecto, 8766. |
 | `CONTFACTU_NAVEGADOR=1` | Abre en el navegador en vez de la ventana propia. |
 | `CONTFACTU_NO_BROWSER=1` | Arranca solo el servidor. |
 
@@ -236,7 +246,10 @@ Resultado: `instalador\Output\ContFactu-Setup-<versión>.exe`. La versión se de
 | `app/correo.py` | Envío de facturas por correo (SMTP). |
 | `app/excel.py` | Exportación a Excel (libros de IVA y listados). |
 | `app/ventana.py` | Ventana con pywebview. |
+| `app/movil.py` | Emparejamiento, certificado y servidor TLS del móvil (solo si se activa). |
+| `app/api_movil.py` | API estable para la aplicación Android. |
 | `app/iconos.py` | Iconos SVG propios. |
+| `docs/` | Guía del acceso móvil y contrato de la API. |
 | `instalador/` | PyInstaller, Inno Setup y script de construcción. |
 | `herramientas/` | Datos de demostración y pantalla de carga. |
 | `tests/` | Pruebas (pytest). |
@@ -252,6 +265,8 @@ Resultado: `instalador\Output\ContFactu-Setup-<versión>.exe`. La versión se de
   más pequeña. El resumen del 303 lleva a casillas propias solo los tipos 4, 10 y 21 %; los demás aparecen aparte, para
   revisarlos.
 - No hay factura electrónica (Facturae / B2B) ni modelos oficiales de la AEAT.
+- El acceso desde el móvil (0.2.0) lo atiende este PC y viene desactivado. La aplicación Android se publica
+  aparte. Sin la opción activada, ContFactu no escucha en la red.
 - Versión temprana: haga copias de seguridad con frecuencia.
 
 Errores y sugerencias: [Issues](https://github.com/LomoXSoft/ContFactu/issues). Para contribuir, vea [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -273,5 +288,5 @@ posterior (GPL-3.0-or-later). Se distribuye con la esperanza de que sea útil, p
 la garantía implícita de COMERCIABILIDAD o IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Consulte el archivo [LICENSE](LICENSE).
 
 Componentes de terceros que se usan al construir el instalador:
-- Python, FastAPI, Uvicorn, Jinja2, ReportLab, dbfread, openpyxl, pywebview y Pillow (dependencia de ReportLab), cada uno con su licencia.
+- Python, FastAPI, Uvicorn, Jinja2, ReportLab, dbfread, openpyxl, pywebview, keyring, cryptography y Pillow (dependencia de ReportLab), cada uno con su licencia.
 - 7-Zip © Igor Pavlov (GNU LGPL + restricción unRAR), que se distribuye con su `License.txt`.

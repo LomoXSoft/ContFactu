@@ -45,7 +45,7 @@ def web(con):
 # ------------------------------------------------------------------------------------------------ valores por defecto
 def test_version():
     import app
-    assert app.__version__ == "0.1.0"
+    assert app.__version__ == "0.2.0"
 
 def test_por_defecto_todo_desactivado(con):
     from app import copias

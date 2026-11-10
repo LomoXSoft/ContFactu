@@ -6,6 +6,40 @@ Formato: cada versión con lo nuevo, lo cambiado y lo corregido. La versión sal
 La 0.0.3 es la primera versión publicada en GitHub. La 0.0.1 y la 0.0.2 fueron versiones de prueba sin publicar; su
 historial de git no forma parte de este repositorio.
 
+## [0.2.0] — 2026-11-10
+
+Acceso opcional desde un móvil emparejado. Viene **desactivado**: quien actualiza desde la 0.1.0 sigue
+igual (la ventana escucha solo en este equipo) hasta que lo active en Ajustes. Los datos no se mueven de
+sitio y, antes de poner al día la base, se hace la copia de siempre.
+
+La aplicación Android no entra en esta versión. Aquí está el lado PC y el contrato que esa aplicación
+consumirá (`docs/api-movil.md`).
+
+### Nuevo
+- **Ajustes → «Permitir acceso desde el móvil»**, desactivado de origen. Sin avisos al abrir.
+- Al activarlo: emparejamiento con código QR y código de respaldo, lista de dispositivos con el último
+  acceso y botón para revocar cada uno.
+- Servidor aparte, solo con la API del móvil, cifrado con un certificado autofirmado. La huella SHA-256
+  va en el QR para que el móvil la ancle. El token de cada dispositivo se guarda solo como hash.
+- El emparejamiento se bloquea tras 5 códigos incorrectos.
+- Escucha en la wifi y en una VPN privada (WireGuard o Tailscale) sin abrir puertos del router.
+  Guía: `docs/acceso-movil.md`.
+- API 1: empresas, facturas (consultar, crear, editar y PDF), clientes y búsqueda. El IVA de cada línea
+  sigue siendo libre. No hay descarga de la base ni de las copias.
+
+### Cambiado
+- Esquema 5 (tabla `dispositivos_movil`). Una base de la 0.1.0 se copia antes de crearla y conserva
+  empresas, facturas y clientes. La opción queda desactivada.
+
+### Dependencias
+- `cryptography`, para crear el certificado del acceso móvil. No se usa mientras la opción está desactivada.
+
+### Comprobación
+- Pruebas automáticas con datos sintéticos: opción apagada, escucha solo local, rechazo sin token o con
+  token revocado, límite de intentos y TLS con la huella anclada.
+- En la preparación de esta versión **no se ha abierto la ventana real de Windows** ni se ha probado con
+  un móvil Android. El TLS se ha probado en local, de extremo a extremo, con un cliente de pruebas.
+
 ## [0.1.0] — 2026-11-07
 
 Corrige el bloqueo al abrir la ventana propia en Windows. No añade pantallas, avisos ni opciones.

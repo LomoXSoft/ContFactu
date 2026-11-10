@@ -480,15 +480,15 @@ def test_origen_rar_con_fc5_en_subcarpeta():
 # ---------------------------------------------------------------- 0.0.2: versión, ventana propia, iconos, splash
 def test_version_unica_y_visible(cliente_web):
     import app
-    assert app.__version__ == "0.1.0"
+    assert app.__version__ == "0.2.0"
     h = cliente_web.get("/acerca").text
-    assert "ContFactu 0.1.0" in h and "LomoXSoft" in h
-    assert cliente_web.get("/salud").text == "ContFactu OK 0.1.0"
-    assert "<title>ContFactu 0.1.0</title>" in cliente_web.get("/asistente").text
+    assert "ContFactu 0.2.0" in h and "LomoXSoft" in h
+    assert cliente_web.get("/salud").text == "ContFactu OK 0.2.0"
+    assert "<title>ContFactu 0.2.0</title>" in cliente_web.get("/asistente").text
 
 def test_changelog_tiene_versiones():
     t = (Path(__file__).parent.parent / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "0.0.1" in t and "0.0.2" in t and "0.0.3" in t and "0.0.4" in t and "0.0.5" in t and "0.1.0" in t
+    assert "0.0.1" in t and "0.0.2" in t and "0.0.3" in t and "0.0.4" in t and "0.0.5" in t and "0.1.0" in t and "0.2.0" in t
 
 def test_iconos_svg_validos_y_en_menu(cliente_web, con):
     import xml.etree.ElementTree as ET
@@ -573,7 +573,7 @@ def test_main_usa_navegador_si_falla_la_ventana(monkeypatch, tmp_path):
         if "abrir" in copias:
             break
         time.sleep(0.01)
-    assert estado["titulo"] == "ContFactu 0.1.0" and abiertos == []
+    assert estado["titulo"] == "ContFactu 0.2.0" and abiertos == []
     assert "abrir" in copias and "cerrar" in copias          # la copia al cerrar sigue en el cierre limpio
     assert splashes == [1]                                   # el splash se cierra al cargar, no se queda delante
     import urllib.request
