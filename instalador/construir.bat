@@ -40,6 +40,15 @@ pyinstaller --noconfirm instalador\ContFactu.spec || goto :error
 rem Seguridad: el paquete NO debe contener datos
 dir /s /b dist\ContFactu | findstr /i /e ".db .dbf .pdf" && (echo ERROR: hay datos dentro de dist & goto :error)
 
+echo Comprobando que el ejecutable genera el codigo QR...
+rem --autoprueba-qr no abre puertos ni toca %%APPDATA%%. Si falla, el motivo queda en %%TEMP%%.
+dist\ContFactu\ContFactu.exe --autoprueba-qr
+if errorlevel 1 (
+  echo ERROR: el ejecutable no ha podido generar el codigo QR.
+  if exist "%TEMP%\contfactu-autoprueba-qr.log" type "%TEMP%\contfactu-autoprueba-qr.log"
+  goto :error
+)
+
 set ISCC="%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not exist %ISCC% set ISCC="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 if not exist %ISCC% set ISCC="%ProgramFiles%\Inno Setup 6\ISCC.exe"

@@ -42,10 +42,19 @@ a = Analysis(
     datas=[(os.path.join(RAIZ, "app", "templates"), os.path.join("app", "templates")),
            (os.path.join(SPECPATH, "7zip", "License.txt"), "7zip"),
            (ICONO, "."), (os.path.join(SPECPATH, "contfactu.png"), ".")] + collect_data_files("webview"),
+    # reportlab.graphics.barcode.__init__ importa, con exec(), todas las simbologías
+    # (code93, code39, …). Un import de qr o de qrencoder ejecuta ese __init__, así que
+    # no se puede evitar: hay que empaquetar el paquete entero. Los nombres sueltos
+    # repiten los que ese arranque carga, por si la recolección no viera alguno.
     hiddenimports=collect_submodules("uvicorn") + collect_submodules("app") + collect_submodules("webview")
-                  + ["herramientas", "herramientas.splash", "clr", "openpyxl",                      "reportlab.graphics.barcode.common",
-                     "reportlab.graphics.barcode.code128", "reportlab.graphics.barcode.qr",
-                     "reportlab.graphics.barcode.qrencoder", "PIL.Image",
+                  + collect_submodules("reportlab.graphics.barcode")
+                  + ["herramientas", "herramientas.splash", "clr", "openpyxl", "PIL.Image",
+                     "reportlab.graphics.barcode.common", "reportlab.graphics.barcode.code128",
+                     "reportlab.graphics.barcode.code39", "reportlab.graphics.barcode.code93",
+                     "reportlab.graphics.barcode.qr", "reportlab.graphics.barcode.qrencoder",
+                     "reportlab.graphics.barcode.widgets", "reportlab.graphics.barcode.eanbc",
+                     "reportlab.graphics.barcode.dmtx", "reportlab.graphics.barcode.usps",
+                     "reportlab.graphics.barcode.usps4s", "reportlab.graphics.barcode.ecc200datamatrix",
                      # contraseña del correo en el Administrador de credenciales de Windows
                      "keyring", "keyring.backends", "keyring.backends.Windows", "keyring.backends.fail",
                      "cryptography", "cryptography.x509", "cryptography.hazmat.primitives.asymmetric.ec",

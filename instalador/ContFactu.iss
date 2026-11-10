@@ -52,6 +52,11 @@ UninstallDisplayIcon={app}\{#MyAppExe}
 [Languages]
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 
+[Messages]
+; %% se ve como %. La página de carpeta no sale al actualizar (DisableDirPage=auto): el texto va en la bienvenida.
+WelcomeLabel2=Se va a instalar [name/ver] en este equipo.%n%nPara actualizar ContFactu, instale la versión nueva en la misma carpeta. Los datos de cada usuario están en su carpeta personal (%%APPDATA%%\ContFactu) y no se tocan.
+SelectDirDesc=Dónde debe instalarse [name]. Para actualizar, use la misma carpeta. Los datos de %%APPDATA%%\ContFactu no se modifican.
+
 [Tasks]
 Name: "escritorio"; Description: "Crear un acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
 

@@ -459,7 +459,20 @@ def _log_qr(exc):
           "No he podido generar el código QR de emparejamiento:", repr(exc), flush=True)
     traceback.print_exc()
 
+def autoprueba_qr():
+    """Devuelve 0 si sale un PNG de QR. No abre puertos ni usa la carpeta de datos.
+
+    La llama el .exe con --autoprueba-qr, después de empaquetar y antes del instalador.
+    """
+    png = qr_png("ContFactu autoprueba")
+    if not png or not png.startswith(b"\x89PNG\r\n\x1a\n") or b"IDAT" not in png:
+        print("La autoprueba del código QR no ha producido un PNG válido.", flush=True)
+        return 1
+    return 0
+
 def _modulos_qr(texto):
+    # Importar qr (o qrencoder) ejecuta reportlab.graphics.barcode.__init__, que a su
+    # vez carga el resto de simbologías con exec(). En el .exe van todas: ver ContFactu.spec.
     from reportlab.graphics.barcode.qr import QrCodeWidget
     q = QrCodeWidget(texto, barLevel="M")
     q.qr.make()

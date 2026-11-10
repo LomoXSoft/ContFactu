@@ -43,6 +43,11 @@ consumirá (`docs/api-movil.md`).
   ambos incluidos, con los decimales que se escriban. Vale en el formulario, en la ficha del cliente y en la API del móvil.
 - El código QR de Ajustes se pinta como imagen PNG. Si no se puede generar, el motivo queda en
   `contfactu.log` y en pantalla sigue el código para escribirlo a mano.
+- El ejecutable incluye todos los códigos de barras de ReportLab: su carga importa el resto por nombre
+  y, si falta uno, el QR no se dibuja. La compilación comprueba que el `.exe` genera el PNG antes de
+  armar el instalador.
+- El instalador avisa, en la bienvenida, de que actualizar es instalar en la misma carpeta y de que
+  los datos de `%APPDATA%\ContFactu` no se tocan.
 
 ### Dependencias
 - `cryptography`, para crear el certificado del acceso móvil. No se usa mientras la opción está desactivada.

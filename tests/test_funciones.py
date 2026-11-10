@@ -405,6 +405,75 @@ def test_ficheros_de_empaquetado_sin_datos_reales():
         assert prohibido not in iss.lower().replace("contfactu.exe", "")
     assert "{autodesktop}" in iss and "{group}" in iss
     assert (RAIZ / "instalador" / "construir.bat").exists()
+    assert "WelcomeLabel2=" in iss and "misma carpeta" in iss and "%%APPDATA%%\\ContFactu" in iss
+    assert "MsgBox" not in iss
+
+def _modulos_que_carga_reset():
+    """Lo que ejecuta _reset, incluido lo que widgets.py importa con exec al cargarse."""
+    import inspect, re
+    import reportlab.graphics.barcode as bc
+    raiz = Path(bc.__file__).parent
+
+    def refs(texto):
+        mods = set()
+        for m in re.finditer(r"\bfrom\s+(reportlab\.graphics\.barcode(?:\.\w+)?)\s+import\s+([^\n#]+)", texto):
+            base, names = m.group(1), m.group(2).split("\\")[0]
+            if base != "reportlab.graphics.barcode":
+                mods.add(base)
+                continue
+            for nombre in names.replace("(", " ").replace(")", " ").split(","):
+                nombre = nombre.strip().split(" as ")[0].strip()
+                if nombre.isidentifier():
+                    mods.add(base + "." + nombre)
+        mods.update(re.findall(r"\bimport\s+(reportlab\.graphics\.barcode\.\w+)", texto))
+        mods.update(re.findall(r"""['\"](reportlab\.graphics\.barcode\.\w+)['\"]""", texto))
+        return mods
+
+    vistos, leidos = set(), set()
+    cola = [inspect.getsource(bc._reset)]
+    while cola:
+        for mod in refs(cola.pop()):
+            if mod in vistos:
+                continue
+            vistos.add(mod)
+            nombre = mod.rsplit(".", 1)[-1]
+            ruta = raiz / f"{nombre}.py"
+            if ruta.is_file() and nombre not in leidos:
+                leidos.add(nombre)
+                cola.append(ruta.read_text(encoding="utf-8"))
+    return vistos
+
+def test_el_spec_empaqueta_los_codigos_que_carga_el_qr():
+    import pkgutil
+    import reportlab.graphics.barcode as bc
+    spec = (RAIZ / "instalador" / "ContFactu.spec").read_text(encoding="utf-8")
+    linea = next(l for l in spec.splitlines() if 'collect_submodules("reportlab.graphics.barcode")' in l)
+    assert not linea.lstrip().startswith("#")
+    ocultos = set(__import__("re").findall(r'"(reportlab\.graphics\.barcode\.\w+)"', spec))
+    ocultos |= {m.name for m in pkgutil.walk_packages(bc.__path__, bc.__name__ + ".")}
+    faltan = sorted(_modulos_que_carga_reset() - ocultos)
+    assert not faltan
+
+def test_autoprueba_qr_no_escucha_ni_toca_datos(monkeypatch):
+    import socket
+    from app import db, movil
+    def no_bind(*a, **k):
+        raise AssertionError("no debe escuchar")
+    def no_datos(*a, **k):
+        raise AssertionError("no debe usar datos")
+    monkeypatch.setattr(socket.socket, "bind", no_bind)
+    monkeypatch.setattr(db, "data_dir", no_datos)
+    monkeypatch.delenv("CONTFACTU_DATA", raising=False)
+    assert movil.autoprueba_qr() == 0
+
+def test_construir_prueba_el_qr_antes_del_instalador():
+    bat = (RAIZ / "instalador" / "construir.bat").read_text(encoding="utf-8")
+    lanzador = (RAIZ / "instalador" / "lanzador.py").read_text(encoding="utf-8")
+    i_py = bat.lower().index("pyinstaller")
+    i_qr = bat.index("--autoprueba-qr")
+    i_is = bat.index("ISCC")
+    assert i_py < i_qr < i_is
+    assert lanzador.index("--autoprueba-qr") < lanzador.index("main()")
 
 def test_lanzador_puerto_libre():
     from app.__main__ import puerto_libre
