@@ -260,7 +260,21 @@ def test_facturas_clientes_busqueda_y_pdf_sin_volcado(con, api):
     mala = api.post("/api/v1/empresas/1/facturas", headers=auth, json={
         "nombre_f": "Cliente Uno SL", "fecha": "2026-11-10",
         "lineas": [{"concepto": "Mal", "cantidad": "1", "precio": "10", "iva": "150"}]})
-    assert mala.status_code == 400 and "100" in mala.json()["error"]
+    assert mala.status_code == 400 and mala.json()["campo"] == "iva" and mala.json()["indice"] == 0
+    assert "entre 0 % y 100 %" in mala.json()["error"]
+    dto = api.post("/api/v1/empresas/1/facturas", headers=auth, json={
+        "nombre_f": "Cliente Uno SL", "fecha": "2026-11-10", "descuento": "101",
+        "lineas": [{"concepto": "Mal", "cantidad": "1", "precio": "10", "iva": "21", "descuento": "10"}]})
+    assert dto.status_code == 400 and dto.json()["campo"] == "descuento" and "indice" not in dto.json()
+    assert "El descuento debe estar entre 0 % y 100 %" in dto.json()["error"]
+    linea_dto = api.put(f"/api/v1/empresas/1/facturas/{factura['id']}", headers=auth, json={
+        "nombre_f": "Cliente Uno SL", "fecha": "2026-11-10",
+        "lineas": [{"concepto": "Mal", "cantidad": "1", "precio": "10", "iva": "7,555", "descuento": "-1"}]})
+    assert linea_dto.status_code == 400 and linea_dto.json()["campo"] == "descuento" and linea_dto.json()["indice"] == 0
+    fina = api.post("/api/v1/empresas/1/facturas", headers=auth, json={
+        "nombre_f": "Cliente Uno SL", "fecha": "2026-11-10",
+        "lineas": [{"concepto": "Fino", "cantidad": "1", "precio": "100", "iva": "7,555"}]})
+    assert fina.status_code == 201 and fina.json()["lineas"][0]["iva"] == "7.555"
     clientes = api.get("/api/v1/empresas/1/clientes?q=Uno", headers=auth).json()["clientes"]
     assert clientes and clientes[0]["nif"] == "12345678Z"
     bus = api.get("/api/v1/empresas/1/buscar?q=Cliente", headers=auth).json()

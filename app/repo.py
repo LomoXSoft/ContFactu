@@ -2,7 +2,7 @@
 y libros de IVA. Todas las funciones reciben una conexión y NO hacen commit (lo hace quien llama con `with con:`)."""
 import datetime, re
 from decimal import Decimal as D
-from .calc import bases_desde_lineas, totales_cabecera, dec, r2, fmt_eur, tramos_iva, desglose_json, tipo_iva_valido
+from .calc import bases_desde_lineas, totales_cabecera, dec, r2, fmt_eur, tramos_iva, desglose_json, tipo_iva_valido, descuento_valido
 
 TASAS_RE = {dec(21): dec("5.2"), dec(10): dec("1.4"), dec(5): dec("0.62"), dec(4): dec("0.5")}
 RE_DEFECTO = "21:5.2,10:1.4,5:0.62,4:0.5"   # recargo de equivalencia por tipo de IVA (editable en la ficha de la empresa)
@@ -16,7 +16,7 @@ def parse_tasas_re(txt):
         if ":" not in par:
             raise ValueError(f"Recargo no válido: «{par.strip()}» (formato IVA:RE, p. ej. 21:5,2).")
         iva, re_ = par.split(":", 1)
-        res[dec(tipo_iva_valido(iva))] = dec(tipo_iva_valido(re_))
+        res[dec(tipo_iva_valido(iva))] = dec(tipo_iva_valido(re_, etiqueta="El recargo de equivalencia"))
     return res
 
 def tasas_re_empresa(con, eid):
@@ -34,7 +34,11 @@ MOTIVOS_R = {  # tipos de factura rectificativa del Reglamento de facturación /
 }
 
 class ErrorNegocio(Exception):
-    """Error explicable al usuario (se muestra tal cual en pantalla)."""
+    """Error explicable al usuario. `campo` es el name del input; `indice` la fila, desde 0, si hay varias."""
+    def __init__(self, mensaje, campo=None, indice=None):
+        super().__init__(mensaje)
+        self.campo = campo
+        self.indice = indice
 
 class AvisoNumeracion(ErrorNegocio):
     """Borrar esta factura deja un hueco en la numeración: hay que confirmarlo expresamente."""
@@ -140,10 +144,10 @@ def _comprobar_fecha_serie(con, d, fecha):
     ant, sig = vecinas_en_serie(con, dict(d, fecha=fecha))
     if ant and ant.get("fecha") and fecha < ant["fecha"]:
         raise ErrorNegocio(f"La fecha {_f(fecha)} es anterior a la de la factura {num_visible(ant)} ({_f(ant['fecha'])}). "
-                           "En una misma serie las fechas deben seguir el orden de la numeración.")
+                           "En una misma serie las fechas deben seguir el orden de la numeración.", campo="fecha")
     if sig and sig.get("fecha") and fecha > sig["fecha"]:
         raise ErrorNegocio(f"La fecha {_f(fecha)} es posterior a la de la factura {num_visible(sig)} ({_f(sig['fecha'])}). "
-                           "En una misma serie las fechas deben seguir el orden de la numeración.")
+                           "En una misma serie las fechas deben seguir el orden de la numeración.", campo="fecha")
 
 # ----------------------------------------------------------------------------------------------- cálculo
 def limpiar_lineas(lineas):
@@ -180,14 +184,19 @@ def _con_re(d):
     return any(r != 0 for _, _, r in tramos_iva(d))
 
 def validar_lineas_iva(lineas):
-    """Cada línea puede llevar cualquier tipo de IVA entre 0 y 100 con dos decimales como máximo."""
-    for n, l in enumerate(lineas, 1):
+    """Cada línea puede llevar cualquier tipo de IVA entre 0 y 100, ambos incluidos, con los decimales que se escriban.
+    El descuento de la línea es un porcentaje en el mismo rango. indice es la posición en la lista, desde 0."""
+    for n, l in enumerate(lineas):
         if l.get("comentario"):
             continue
         try:
             l["iva"] = tipo_iva_valido(l.get("iva"))
         except ValueError as ex:
-            raise ErrorNegocio(f"Línea {n} («{(l.get('concepto') or '')[:40]}»): {ex}")
+            raise ErrorNegocio(str(ex), campo="iva", indice=n)
+        try:
+            l["descuento"] = descuento_valido(l.get("descuento"))
+        except ValueError as ex:
+            raise ErrorNegocio(str(ex), campo="descuento", indice=n)
     return lineas
 
 CAMPOS_CAB = ("fecha", "fecha_operacion", "nombre_f", "direccion_f", "ciudad_f", "nif", "cliente_codigo", "forma_pago",
@@ -227,13 +236,17 @@ def guardar_documento(con, eid, tipo, datos, lineas, did=None):
     try:
         datetime.date.fromisoformat(fecha)
     except ValueError:
-        raise ErrorNegocio(f"Fecha no válida: {fecha}")
-    cab, tot = calcular_cabecera(lineas, datos.get("descuento") or "0", datos.get("retencion") or "0", datos.get("re"),
+        raise ErrorNegocio(f"Fecha no válida: {fecha}", campo="fecha")
+    try:
+        descuento = descuento_valido(datos.get("descuento"))
+    except ValueError as ex:
+        raise ErrorNegocio(str(ex), campo="descuento")
+    cab, tot = calcular_cabecera(lineas, descuento, datos.get("retencion") or "0", datos.get("re"),
                                  datos.get("exento"), datos.get("iva_incluido"), tasas_re=tasas_re_empresa(con, eid))
     valores = {k: datos.get(k) for k in CAMPOS_CAB if k in datos}
     valores["fecha"] = fecha
     valores.setdefault("fecha_operacion", fecha)
-    valores.update(cab, descuento=str(datos.get("descuento") or "0"), iva_incluido=int(bool(datos.get("iva_incluido"))))
+    valores.update(cab, descuento=descuento, iva_incluido=int(bool(datos.get("iva_incluido"))))
     if did is None:
         serie = (datos.get("serie") or "").strip()[:3]
         numero = datos.get("numero") or siguiente_numero(con, eid, tipo, serie, fecha)
@@ -340,11 +353,11 @@ def crear_rectificativa(con, did_orig, rect_tipo, motivo, codigo_r="R4", fecha=N
     if o["tipo"] != "F":
         raise ErrorNegocio("Solo se pueden rectificar facturas emitidas.")
     if rect_tipo not in ("I", "S"):
-        raise ErrorNegocio("Indique si es por diferencias o por sustitución.")
+        raise ErrorNegocio("Indique si es por diferencias o por sustitución.", campo="rect_tipo")
     if codigo_r not in MOTIVOS_R:
-        raise ErrorNegocio("Tipo de rectificativa no válido (R1 a R4).")
+        raise ErrorNegocio("Tipo de rectificativa no válido (R1 a R4).", campo="codigo_r")
     if not (motivo or "").strip():
-        raise ErrorNegocio("Indique el motivo de la rectificación (obligatorio en la factura).")
+        raise ErrorNegocio("Indique el motivo de la rectificación (obligatorio en la factura).", campo="rect_motivo")
     fecha = fecha or hoy()
     if fecha < (o["fecha"] or ""):
         raise ErrorNegocio("La rectificativa no puede tener fecha anterior a la factura que rectifica.")

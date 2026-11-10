@@ -51,19 +51,44 @@ def tramos_iva(doc):
 def desglose_json(tramos):
     return json.dumps([[str(b), format(i, "f"), format(r, "f")] for b, i, r in tramos])
 
-def tipo_iva_valido(v):
-    """Normaliza un tipo de IVA o de RE escrito por el usuario (admite coma decimal y «%»): 0–100 con dos decimales como máximo.
-    Devuelve el texto normalizado ('7.5', '21', '0') o lanza ValueError con un mensaje en español."""
+def _leer_porcentaje(v):
+    """None si está vacío; Decimal si se puede leer (coma, espacios o «%»). Lanza InvalidOperation si no es un número."""
     x = str(v if v is not None else "").strip().replace("%", "").replace(" ", "").replace(",", ".")
-    try:
-        d = D(x)
-    except InvalidOperation:
-        raise ValueError(f"Tipo no válido: «{v}». Escriba un número entre 0 y 100 (p. ej. 21 o 7,5).")
-    if not d.is_finite() or d < 0 or d > 100:
-        raise ValueError(f"Tipo fuera de rango: «{v}». Debe estar entre 0 y 100.")
-    if d != d.quantize(C):
-        raise ValueError(f"Tipo con demasiados decimales: «{v}». Use como máximo dos (p. ej. 5,25).")
+    if x == "":
+        return None
+    d = D(x)
+    if not d.is_finite():
+        raise InvalidOperation
+    return d
+
+def _texto_porcentaje(d):
     return format(d.normalize() + 0, "f")
+
+def tipo_iva_valido(v, etiqueta="El IVA"):
+    """Normaliza un tipo de IVA o de recargo: de 0 a 100, ambos incluidos, con los decimales que se escriban.
+    Admite coma y «%». Devuelve el texto con punto ('7.5', '21', '7.555') o lanza ValueError."""
+    try:
+        d = _leer_porcentaje(v)
+    except InvalidOperation:
+        raise ValueError(f"{etiqueta} no es válido: «{v}». Escriba un número entre 0 y 100.")
+    if d is None:
+        raise ValueError(f"{etiqueta} no es válido: «{v}». Escriba un número entre 0 y 100.")
+    if d < 0 or d > 100:
+        raise ValueError(f"{etiqueta} debe estar entre 0 % y 100 %.")
+    return _texto_porcentaje(d)
+
+def descuento_valido(v):
+    """Porcentaje de descuento entre 0 y 100, ambos incluidos. Vacío equivale a 0.
+    Devuelve el texto con punto o lanza ValueError."""
+    if v is None or str(v).strip() == "":
+        return "0"
+    try:
+        d = _leer_porcentaje(v)
+    except InvalidOperation:
+        raise ValueError("El descuento debe estar entre 0 % y 100 %.")
+    if d is None or d < 0 or d > 100:
+        raise ValueError("El descuento debe estar entre 0 % y 100 %.")
+    return _texto_porcentaje(d)
 
 def formato_pct(v):
     """Porcentaje para mostrarlo en un formulario: coma decimal si el valor se puede leer.

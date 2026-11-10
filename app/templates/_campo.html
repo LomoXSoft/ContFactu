@@ -1,0 +1,8 @@
+{% macro inv(nombre, indice=none) -%}
+{%- if err and err.campo == nombre and ((indice is none and err.indice is none) or (indice is not none and err.indice == indice)) %} aria-invalid="true" aria-describedby="err-{{ nombre }}{% if indice is not none %}-{{ indice }}{% endif %}"{% endif -%}
+{%- endmacro %}
+{% macro aviso_campo(nombre, indice=none) -%}
+{%- if err and err.campo == nombre and ((indice is none and err.indice is none) or (indice is not none and err.indice == indice)) %}
+<span class="errcampo" id="err-{{ nombre }}{% if indice is not none %}-{{ indice }}{% endif %}">{{ err.mensaje }}</span>
+{%- endif -%}
+{%- endmacro %}

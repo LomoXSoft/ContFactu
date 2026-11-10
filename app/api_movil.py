@@ -56,16 +56,24 @@ async def _http(request, exc):
 async def _validacion(request, exc):
     return JSONResponse({"error": "La petición no es válida."}, status_code=400)
 
+def _respuesta_negocio(exc):
+    cuerpo = {"error": str(exc)}
+    if getattr(exc, "campo", None):
+        cuerpo["campo"] = exc.campo
+    if getattr(exc, "indice", None) is not None:
+        cuerpo["indice"] = exc.indice
+    return JSONResponse(cuerpo, status_code=400)
+
 @aplicacion.exception_handler(ErrorNegocio)
 async def _negocio(request, exc):
-    return JSONResponse({"error": str(exc)}, status_code=400)
+    return _respuesta_negocio(exc)
 
 @aplicacion.exception_handler(Exception)
 async def _inesperado(request, exc):
     if isinstance(exc, HTTPException):
         return _cuerpo_error(exc.detail, exc.status_code)
     if isinstance(exc, ErrorNegocio):
-        return JSONResponse({"error": str(exc)}, status_code=400)
+        return _respuesta_negocio(exc)
     if isinstance(exc, RequestValidationError):
         return JSONResponse({"error": "La petición no es válida."}, status_code=400)
     return JSONResponse({"error": "No se ha podido completar la operación."}, status_code=500)

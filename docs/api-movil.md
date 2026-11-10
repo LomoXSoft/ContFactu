@@ -121,9 +121,11 @@ Sin datos de negocio. Sirve para comprobar que se llegó al PC después de ancla
 ```
 
 `ivas` son los tipos habituales de la empresa, el primero es el de por defecto. **No son una lista
-cerrada**: cada línea de factura acepta cualquier tipo entre 0 y 100 con hasta dos decimales
-(por ejemplo `7.5`). `re_tasas` es el recargo de equivalencia que el PC aplicará si en la factura se
-envía `"re": true`.
+cerrada**: cada línea acepta cualquier tipo entre 0 y 100, ambos incluidos, con los decimales que hagan
+falta (por ejemplo `7.5` o `7.555`). Lo mismo vale para el recargo de equivalencia y para el descuento
+en porcentaje (de línea, general o del cliente). Fuera de ese rango la respuesta es `400` con `campo`
+(`iva`, `descuento` o el que corresponda) y, si es una línea, `indice` desde 0. `re_tasas` es el recargo
+que el PC aplicará si en la factura se envía `"re": true`.
 
 ### `GET /api/v1/empresas/{id}/facturas`
 
@@ -179,8 +181,8 @@ Crea una factura. Respuesta `201` con el mismo objeto que el GET de detalle.
 - En cada línea, `iva` vacío significa 21. `comentario: true` es una línea sin importe.
 - `re: true` aplica el recargo de equivalencia de la empresa. Por defecto es false.
 - Los totales, la numeración y el orden de fechas de la serie los calcula el PC con las mismas reglas
-  que la ventana. Un tipo de IVA ilegal (por ejemplo 150, o más de dos decimales) responde `400` con
-  el mensaje del programa y no crea la factura.
+  que la ventana. Un tipo de IVA o un descuento fuera de 0–100 (por ejemplo 150 o -1) responde `400`
+  con `{"error", "campo", "indice"}` y no crea la factura. `indice` solo viene si el fallo es de una línea.
 
 ### `PUT /api/v1/empresas/{id}/facturas/{factura}`
 

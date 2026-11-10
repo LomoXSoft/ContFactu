@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block c %}
+{% extends "base.html" %}{% from "_campo.html" import inv, aviso_campo with context %}{% block c %}
 {% set es_g = tipo == 'G' %}
 <form method="post" class="card" id="f" action="{% if rectifica %}/d/{{rectifica.id}}/rectificar{% else %}/e/{{e.id}}/guardar/{{tipo}}{% endif %}">
 {% if rectifica %}<h2>Factura rectificativa de la {{rectifica|num}} <span class="muted">(número previsto R{{siguiente}})</span></h2>
@@ -8,27 +8,30 @@ completa; la original deja de estar pendiente de cobro.</div>
 <div class="grid"><label>Tipo de rectificación<select name="rect_tipo" onchange="location='?modo='+this.value">
 <option value="I" {{'selected' if modo=='I'}}>Por diferencias</option><option value="S" {{'selected' if modo=='S'}}>Por sustitución</option></select></label>
 <label>Causa (VeriFactu)<select name="codigo_r">{% for k,v in MOTIVOS_R.items() %}<option value="{{k}}" {{'selected' if k=='R4'}}>{{k}} – {{v}}</option>{% endfor %}</select></label>
-<label style="grid-column:span 2">Motivo (se imprime)<input name="rect_motivo" required placeholder="p. ej. Devolución de mercancía / error en el precio"></label></div><br>
+<label style="grid-column:span 2">Motivo (se imprime)<input name="rect_motivo" required placeholder="p. ej. Devolución de mercancía / error en el precio"{{ inv('rect_motivo') }}>{{ aviso_campo('rect_motivo') }}</label></div><br>
 {% elif nuevo %}<h2>{{'Nuevo' if tipo in 'GPAD' else 'Nueva'}} {{TIPOS[tipo]|lower}} <span class="muted">(número previsto {{siguiente}})</span></h2>
 {% else %}<h2>Modificar {{TIPOS[tipo]|lower}} {{d|num}}</h2><input type="hidden" name="id" value="{{d.id}}">
 {% if aviso_legal %}<div class="card aviso">⚠ {{aviso_legal}}</div>{% endif %}{% endif %}
-<div class="grid"><label>Fecha<input type="date" name="fecha" value="{{d.fecha}}" required></label>
+{% if err and not err.campo %}<p class="errcampo" role="alert">{{ err.mensaje }}</p>{% endif %}
+<div class="grid"><label>Fecha<input type="date" name="fecha" id="fecha" value="{{d.fecha}}" required{{ inv('fecha') }}>{{ aviso_campo('fecha') }}</label>
 {% if nuevo and not rectifica %}<label>Serie (opcional, máx. 3)<input name="serie" maxlength="3" value="{{serie_defecto or ''}}" style="text-transform:uppercase"></label>{% endif %}
 {% if es_g %}<label>Nº de factura del proveedor<input name="num_factura_proveedor" value="{{d.num_factura_proveedor or ''}}"></label>{% endif %}
 <label>{{'Proveedor' if es_g else 'Cliente'}} (buscar)<input list="terceros" id="buscar" placeholder="Escriba para buscar…" onchange="elegir(this.value)">
 <datalist id="terceros">{% for c in terceros %}<option value="{{c.nombre}}">{% endfor %}</datalist></label></div>
 <input type="hidden" name="cliente_codigo" id="cliente_codigo" value="{{d.cliente_codigo or ''}}">
-<div class="grid" style="margin-top:.6rem"><label>Nombre fiscal<input name="nombre_f" id="nombre_f" required value="{{d.nombre_f or ''}}"></label>
+<div class="grid" style="margin-top:.6rem"><label>Nombre fiscal<input name="nombre_f" id="nombre_f" required value="{{d.nombre_f or ''}}"{{ inv('nombre_f') }}>{{ aviso_campo('nombre_f') }}</label>
 <label>Dirección<input name="direccion_f" id="direccion_f" value="{{d.direccion_f or ''}}"></label>
 <label>Población<input name="ciudad_f" id="ciudad_f" value="{{d.ciudad_f or ''}}"></label><label>NIF<input name="nif" id="nif" value="{{d.nif or ''}}"></label>
 <label>Forma de pago<input name="forma_pago" id="forma_pago" value="{{d.forma_pago or ''}}"></label>
-<label>Descuento general %<input name="descuento" id="descuento" value="{{d.descuento or '0'}}" oninput="calc()"></label>
-<label>Retención IRPF %<input name="retencion" id="retencion" value="{{d.retencion or '0'}}" oninput="calc()"></label>
+<label>Descuento general %<input name="descuento" id="descuento" min="0" max="100" inputmode="decimal" value="{{d.descuento or '0'}}" oninput="calc()"{{ inv('descuento') }}>{{ aviso_campo('descuento') }}</label>
+<label>Retención IRPF %<input name="retencion" id="retencion" value="{{d.retencion or '0'}}" oninput="calc()"{{ inv('retencion') }}>{{ aviso_campo('retencion') }}</label>
 <label>Recargo de equivalencia<select name="re" id="re" onchange="calc()"><option value="0">No</option><option value="1" {{'selected' if con_re}}>Sí</option></select></label>
 <label>Precios<select name="iva_incluido" id="iva_incluido" onchange="calc()"><option value="0">Sin IVA</option><option value="1" {{'selected' if d.iva_incluido}}>IVA incluido</option></select></label>
 <label>Banco (domiciliación)<input name="domiciliacion" value="{{d.domiciliacion or ''}}"></label><label>Cuenta (IBAN/CCC)<input name="ccc" value="{{d.ccc or ''}}"></label></div>
 <h3 style="margin-top:1rem">Líneas <span class="muted" style="font-size:.85rem">(una línea sin precio se imprime como comentario)</span></h3>
 <table id="t"><tr><th>Código</th><th style="width:44%">Concepto</th><th>Cant.</th><th>Precio</th><th>Dto.%</th><th>IVA%</th><th class="n">Importe</th><th></th></tr></table>
+{% if err and err.indice is not none %}<span class="errcampo" id="err-{{ err.campo }}-{{ err.indice }}" data-campo="{{ err.campo }}" data-indice="{{ err.indice }}">{{ err.mensaje }}</span>{% endif %}
+{% if err and err.indice is not none %}<span class="errcampo" id="err-{{ err.campo }}-{{ err.indice }}" data-campo="{{ err.campo }}" data-indice="{{ err.indice }}">{{ err.mensaje }}</span>{% endif %}
 <datalist id="ivas">{% for v in ivas or [] %}<option value="{{v|pct}}">{% endfor %}</datalist><input type="hidden" name="n_lineas" id="n" value="0"><p><button type="button" class="btn sec" onclick="add({})">{{ico('nuevo')}}Añadir línea</button></p>
 <div style="text-align:right;font-size:1.05rem" id="resumen"></div>
 <p class="muted">Los totales definitivos los recalcula el programa al guardar (redondeo por tipo de IVA, como FactuCont).</p>
@@ -44,7 +47,7 @@ function esc(s){return (s??'').toString().replace(/&/g,'&amp;').replace(/"/g,'&q
 function add(l){const i=+n.value;const r=t.insertRow();const c=l.comentario;
 r.innerHTML=`<td><input name="codigo_${i}" size=6 value="${esc(l.codigo)}"></td><td><input name="concepto_${i}" style="width:100%" value="${esc(l.concepto)}"></td>
 <td><input name="cantidad_${i}" size=5 value="${c?'':esc(l.cantidad||'1')}" oninput="calc()"></td><td><input name="precio_${i}" size=8 value="${c?'':esc(l.precio)}" oninput="calc()"></td>
-<td><input name="descuento_${i}" size=3 value="${c||l.descuento=='0'?'':esc(l.descuento)}" oninput="calc()"></td><td><input name="iva_${i}" size=4 list="ivas" inputmode="decimal" title="Cualquier tipo entre 0 y 100 (máx. 2 decimales)" pattern="\\s*(100([.,]0{1,2})?|\\d{1,2}([.,]\\d{1,2})?)\\s*%?\\s*" value="${c?'':esc(pc(l.iva||IVA_DEF))}" oninput="calc()"></td>
+<td><input name="descuento_${i}" min="0" max="100" inputmode="decimal" size=4 value="${c||l.descuento=='0'?'':esc(l.descuento)}" oninput="calc()"></td><td><input name="iva_${i}" min="0" max="100" size=5 list="ivas" inputmode="decimal" title="Cualquier tipo entre 0 % y 100 %" value="${c?'':esc(pc(l.iva||IVA_DEF))}" oninput="calc()"></td>
 <td class="n" id="imp_${i}"></td><td><button type="button" class="btn sec peq" title="Quitar línea" onclick="this.closest('tr').remove();calc()">✕</button></td>`;n.value=i+1;calc()}
 function elegir(nombre){const c=TER.find(x=>x.nombre===nombre);if(!c)return;
 for(const [k,src] of [['nombre_f',c.nombre_f||c.nombre],['direccion_f',c.direccion_f||c.direccion],['ciudad_f',c.ciudad_f||c.ciudad],['nif',c.nif],['forma_pago',c.forma_pago]])document.getElementById(k).value=src||'';
@@ -60,4 +63,15 @@ for(const k in g){const b=Math.round(g[k]*f*100)/100;base+=b;cuota+=Math.round(b
 const ret=Math.round(base*num(document.getElementById('retencion').value))/100;
 document.getElementById('resumen').innerHTML=`Base <b>${fmt(base)}</b> · IVA <b>${fmt(cuota)}</b>${re?` · RE <b>${fmt(re)}</b>`:''}${ret?` · Retención <b>-${fmt(ret)}</b>`:''} · TOTAL <b>${fmt(base+cuota+re-ret)} €</b>`}
 LIN.forEach(add);for(let k=LIN.length;k<Math.max(3,LIN.length+1);k++)add({});
+const ERR = {{ err|tojson if err else 'null' }};
+if(ERR && ERR.campo){
+  const nombre = ERR.indice === null || ERR.indice === undefined ? ERR.campo : ERR.campo + '_' + ERR.indice;
+  const el = document.getElementById(nombre) || document.querySelector('[name="'+nombre+'"]');
+  if(el){
+    el.setAttribute('aria-invalid','true');
+    let aviso = document.getElementById('err-'+ERR.campo+(ERR.indice===null||ERR.indice===undefined?'':'-'+ERR.indice));
+    if(!aviso){aviso=document.createElement('span');aviso.className='errcampo';aviso.id='err-'+ERR.campo+(ERR.indice===null||ERR.indice===undefined?'':'-'+ERR.indice);aviso.textContent=ERR.mensaje;}
+    el.insertAdjacentElement('afterend', aviso);
+  }
+}
 </script>{% endblock %}

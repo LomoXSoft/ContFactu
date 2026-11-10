@@ -41,7 +41,7 @@ Estado: **0.2.0**. Sigue en evolución (vea las limitaciones). Haga copias de se
 - **PDF**:
   - con un diseño propio por defecto;
   - con el diseño `.fmt` de cada empresa importada, para que las facturas salgan como antes.
-- **IVA sin límites**: cualquier tipo entre 0 y 100 % con hasta 2 decimales (p. ej. 7,5 %) en cada línea, y tantos tipos
+- **IVA sin límites**: cualquier tipo entre 0 % y 100 % (ambos incluidos), con los decimales que hagan falta (p. ej. 7,5 o 7,555), en cada línea, y tantos tipos
   distintos por factura como haga falta. Cada empresa tiene su lista editable de tipos habituales y de recargo de equivalencia.
 - **Libros de IVA** de emitidas y recibidas, con recargo de equivalencia y retenciones. Exportan a CSV y a Excel con columnas
   al estilo de los libros registro de la AEAT, e incluyen un resumen **orientativo** del modelo 303.

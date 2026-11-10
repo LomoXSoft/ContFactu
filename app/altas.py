@@ -2,7 +2,7 @@
 Como en repo.py, las funciones reciben una conexión y NO hacen commit."""
 import re
 from .repo import ErrorNegocio, hoy, RE_DEFECTO, parse_tasas_re
-from .calc import tipo_iva_valido
+from .calc import tipo_iva_valido, descuento_valido
 
 IVAS_DEFECTO = "21,10,4,0"
 CAMPOS_EMPRESA = ("codigo", "nombre", "nif", "direccion", "cp", "ciudad", "provincia", "telefono", "email", "actividad",
@@ -71,58 +71,62 @@ def tabla_tipos(e):
     return filas
 
 def tipos_desde_tabla(ivas, res):
-    """Listas paralelas del formulario (tipo de IVA, recargo) -> ('21,10,7.5', '21:5.2,10:1.4'). Filas vacías se ignoran."""
+    """Listas paralelas del formulario (tipo de IVA, recargo) -> ('21,10,7.5', '21:5.2,10:1.4'). Filas vacías se ignoran.
+    indice es la fila del formulario, desde 0, también si hay filas vacías delante."""
     lista, tasas = [], []
-    for iva, re_ in zip(ivas, res):
+    for n, (iva, re_) in enumerate(zip(ivas, res)):
         iva, re_ = (iva or "").strip(), (re_ or "").strip()
         if not iva and not re_:
             continue
         if not iva:
-            raise ErrorNegocio(f"Hay un recargo ({re_}) sin tipo de IVA.")
+            raise ErrorNegocio(f"Hay un recargo ({re_}) sin tipo de IVA.", campo="tipo_re", indice=n)
         try:
             iva = tipo_iva_valido(iva)
-            re_ = tipo_iva_valido(re_) if re_ else ""
         except ValueError as ex:
-            raise ErrorNegocio(str(ex))
+            raise ErrorNegocio(str(ex), campo="tipo_iva", indice=n)
+        try:
+            re_ = tipo_iva_valido(re_, etiqueta="El recargo de equivalencia") if re_ else ""
+        except ValueError as ex:
+            raise ErrorNegocio(str(ex), campo="tipo_re", indice=n)
         if iva in lista:
-            raise ErrorNegocio(f"El tipo de IVA {iva.replace('.', ',')} % está repetido.")
+            raise ErrorNegocio(f"El tipo de IVA {iva.replace('.', ',')} % está repetido.", campo="tipo_iva", indice=n)
         lista.append(iva)
         if re_ and re_ != "0":
             tasas.append(f"{iva}:{re_}")
     if not lista:
-        raise ErrorNegocio("Indique al menos un tipo de IVA.")
+        raise ErrorNegocio("Indique al menos un tipo de IVA.", campo="tipo_iva", indice=0)
     return ",".join(lista), ",".join(tasas)
 
 def _limpiar_empresa(datos, con, eid=None):
     d = {k: (str(datos.get(k)).strip() if datos.get(k) is not None else "") for k in CAMPOS_EMPRESA}
     if not d["nombre"]:
-        raise ErrorNegocio("Falta el nombre o razón social de la empresa.")
+        raise ErrorNegocio("Falta el nombre o razón social de la empresa.", campo="nombre")
     if not d["nif"]:
-        raise ErrorNegocio("Falta el NIF/CIF de la empresa: es obligatorio en las facturas.")
+        raise ErrorNegocio("Falta el NIF/CIF de la empresa: es obligatorio en las facturas.", campo="nif")
     d["nif"] = normalizar_nif(d["nif"])
     if not nif_valido(d["nif"]):
-        raise ErrorNegocio(f"El NIF/CIF «{d['nif']}» no es válido (revise la letra o el dígito de control).")
+        raise ErrorNegocio(f"El NIF/CIF «{d['nif']}» no es válido (revise la letra o el dígito de control).", campo="nif")
     d["codigo"] = d["codigo"] or siguiente_codigo_empresa(con)
     if not re.fullmatch(r"\d{1,5}", d["codigo"]):
-        raise ErrorNegocio("El código de empresa debe ser numérico, de hasta 5 cifras (p. ej. 00001).")
+        raise ErrorNegocio("El código de empresa debe ser numérico, de hasta 5 cifras (p. ej. 00001).", campo="codigo")
     d["codigo"] = d["codigo"].zfill(5)
     otra = con.execute("SELECT id, nombre FROM empresas WHERE codigo=?", (d["codigo"],)).fetchone()
     if otra and otra[0] != eid:
-        raise ErrorNegocio(f"El código {d['codigo']} ya lo usa la empresa «{otra[1]}». Elija otro.")
+        raise ErrorNegocio(f"El código {d['codigo']} ya lo usa la empresa «{otra[1]}». Elija otro.", campo="codigo")
     if d["cp"] and not re.fullmatch(r"\d{5}", d["cp"]):
-        raise ErrorNegocio("El código postal debe tener 5 cifras.")
+        raise ErrorNegocio("El código postal debe tener 5 cifras.", campo="cp")
     if d["email"] and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", d["email"]):
-        raise ErrorNegocio(f"El correo electrónico «{d['email']}» no parece válido.")
+        raise ErrorNegocio(f"El correo electrónico «{d['email']}» no parece válido.", campo="email")
     d["serie_defecto"] = d["serie_defecto"].upper()[:3]
     if d["serie_defecto"] and not re.fullmatch(r"[A-Z0-9]{1,3}", d["serie_defecto"]):
-        raise ErrorNegocio("La serie solo puede tener letras y números (máximo 3).")
+        raise ErrorNegocio("La serie solo puede tener letras y números (máximo 3).", campo="serie_defecto")
     if d["serie_defecto"] == "R":
-        raise ErrorNegocio("La serie R está reservada para las facturas rectificativas.")
+        raise ErrorNegocio("La serie R está reservada para las facturas rectificativas.", campo="serie_defecto")
     try:
         d["contador_inicial"] = int(d["contador_inicial"] or 1)
         assert 1 <= d["contador_inicial"] <= 99999
     except (ValueError, AssertionError):
-        raise ErrorNegocio("El primer número de factura debe ser un número entre 1 y 99999.")
+        raise ErrorNegocio("El primer número de factura debe ser un número entre 1 y 99999.", campo="contador_inicial")
     ivas = []
     for x in (d["ivas"] or IVAS_DEFECTO).replace(";", ",").split(","):
         if not x.strip():
@@ -130,18 +134,18 @@ def _limpiar_empresa(datos, con, eid=None):
         try:
             x = tipo_iva_valido(x)
         except ValueError as ex:
-            raise ErrorNegocio(f"Tipo de IVA no válido: «{x.strip()}». {ex}")
+            raise ErrorNegocio(str(ex), campo="tipo_iva")
         if x not in ivas:
             ivas.append(x)
     if not ivas:
-        raise ErrorNegocio("Indique al menos un tipo de IVA.")
+        raise ErrorNegocio("Indique al menos un tipo de IVA.", campo="tipo_iva")
     if datos.get("re_tasas") is None:
         d["re_tasas"] = RE_DEFECTO if eid is None else None
     else:
         try:
             parse_tasas_re(d["re_tasas"])
         except ValueError as ex:
-            raise ErrorNegocio(str(ex))
+            raise ErrorNegocio(str(ex), campo="tipo_re")
     d["ivas"] = ",".join(ivas)
     return d
 
@@ -180,22 +184,26 @@ def guardar_tercero(con, eid, tabla, datos, tid=None):
     if "recargo" in d:
         d["recargo"] = 1 if datos.get("recargo") in ("1", 1, True, "on") else 0
     if not d["nombre"]:
-        raise ErrorNegocio("Falta el nombre.")
+        raise ErrorNegocio("Falta el nombre.", campo="nombre")
     if d["nif"]:
         d["nif"] = normalizar_nif(d["nif"])
     if d["email"] and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", d["email"]):
-        raise ErrorNegocio(f"El correo electrónico «{d['email']}» no parece válido.")
-    for k in ("descuento", "retencion"):
-        if d.get(k):
-            d[k] = d[k].replace(",", ".")
-            try:
-                float(d[k])
-            except ValueError:
-                raise ErrorNegocio(f"Número no válido: «{d[k]}».")
+        raise ErrorNegocio(f"El correo electrónico «{d['email']}» no parece válido.", campo="email")
+    if d.get("descuento"):
+        try:
+            d["descuento"] = descuento_valido(d["descuento"])
+        except ValueError as ex:
+            raise ErrorNegocio(str(ex), campo="descuento")
+    if d.get("retencion"):
+        d["retencion"] = d["retencion"].replace(",", ".")
+        try:
+            float(d["retencion"])
+        except ValueError:
+            raise ErrorNegocio(f"Número no válido: «{d['retencion']}».", campo="retencion")
     d["codigo"] = d["codigo"] or siguiente_codigo_tercero(con, eid, tabla)
     otro = con.execute(f"SELECT id, nombre FROM {tabla} WHERE empresa_id=? AND codigo=?", (eid, d["codigo"])).fetchone()
     if otro and otro[0] != tid:
-        raise ErrorNegocio(f"El código {d['codigo']} ya es de «{otro[1]}».")
+        raise ErrorNegocio(f"El código {d['codigo']} ya es de «{otro[1]}».", campo="codigo")
     if tid:
         con.execute(f"UPDATE {tabla} SET {', '.join(k + '=?' for k in d)} WHERE id=? AND empresa_id=?", [*d.values(), tid, eid])
         return tid

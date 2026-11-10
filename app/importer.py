@@ -10,7 +10,7 @@ import argparse, glob, os, re, sys
 from pathlib import Path
 from dbfread import DBF
 from .db import connect
-from .calc import dec, r2, bases_desde_lineas, totales_cabecera
+from .calc import dec, r2, bases_desde_lineas, totales_cabecera, tipo_iva_valido, descuento_valido
 
 TABLAS_DOC = {  # fichero -> letra de tipo usada en RFALIN/REFERENCIA
     "ingreso1": "F", "albaran1": "A", "presupu1": "P", "gastos1": "G", "mostrad1": "M", "pedidos1": "D",
@@ -34,6 +34,26 @@ def _s(v):
 
 def _num(v):
     return None if v is None else format(dec(v).normalize(), "f")
+
+def _tasa(v, etiqueta):
+    """Tipo de IVA o recargo importado: entre 0 y 100. Vacío se queda vacío."""
+    if v is None or str(v).strip() == "":
+        return None
+    try:
+        return tipo_iva_valido(v, etiqueta=etiqueta)
+    except ValueError as ex:
+        from .repo import ErrorNegocio
+        raise ErrorNegocio(str(ex))
+
+def _dto(v):
+    """Descuento importado, en porcentaje, entre 0 y 100. Vacío equivale a 0."""
+    if v is None or str(v).strip() == "":
+        return "0"
+    try:
+        return descuento_valido(v)
+    except ValueError as ex:
+        from .repo import ErrorNegocio
+        raise ErrorNegocio(str(ex))
 
 def _fecha(v):
     return v.isoformat() if v else None
@@ -154,9 +174,11 @@ def importar_empresa(con, fc5, codigo):
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'factucont')""",
                 (eid, tipo, raw, raw[:3].strip(), raw[3:].strip(), _fecha(g("FECHA")), _fecha(g("FECHAOPERA")), _s(g("NOMBREF")),
                  _s(g("DIRECCIONF")), _s(g("CIUDADF")), _s(g("CIF")),
-                 _num(g("BASE1")), _num(g("IVA1")), _num(g("RE1")), _num(g("BASE2")), _num(g("IVA2")), _num(g("RE2")),
-                 _num(g("BASE3")), _num(g("IVA3")), _num(g("RE3")), int(bool(g("EXENTO"))), int(bool(g("IVAINCL"))),
-                 _num(g("DESCUENTO")), _num(g("RETENCION")), _num(g("RETENIDO")), _num(g("PENDIENTE")), _s(g("FORMAPAGO")),
+                 _num(g("BASE1")), _tasa(g("IVA1"), "El IVA"), _tasa(g("RE1"), "El recargo de equivalencia"),
+                 _num(g("BASE2")), _tasa(g("IVA2"), "El IVA"), _tasa(g("RE2"), "El recargo de equivalencia"),
+                 _num(g("BASE3")), _tasa(g("IVA3"), "El IVA"), _tasa(g("RE3"), "El recargo de equivalencia"),
+                 int(bool(g("EXENTO"))), int(bool(g("IVAINCL"))),
+                 _dto(g("DESCUENTO")), _num(g("RETENCION")), _num(g("RETENIDO")), _num(g("PENDIENTE")), _s(g("FORMAPAGO")),
                  _s(g("DIASPAGO")), _s(g("DOMICILIA")), _s(g("CCC")), _s(g("BIC")),
                  None if g("FACTURADO") is None else int(bool(g("FACTURADO"))), _s(g("NUMFACTURA")),
                  g("DEDUCIBLE"), g("EPIGRAFE")))
@@ -167,7 +189,7 @@ def importar_empresa(con, fc5, codigo):
             for orden, (_, l) in enumerate(ls, 1):
                 con.execute("""INSERT INTO lineas(documento_id,orden,codigo,concepto,cantidad,precio,descuento,iva,comentario,fecha)
                     VALUES(?,?,?,?,?,?,?,?,?,?)""", (did, orden, _s(l["CODIGO"]), _s(l["CONCEPTO"]), _num(l["CANTIDAD"]), _num(l["PRECIO"]),
-                    _num(l["DESCUENTO"]), _num(l["IVA"]), int(bool(l["COMENTARIO"])), _fecha(l["FECHA"])))
+                    _dto(l["DESCUENTO"]), _tasa(l["IVA"], "El IVA"), int(bool(l["COMENTARIO"])), _fecha(l["FECHA"])))
                 stats["lineas"] += 1
             tot = totales_cabecera(dict(con.execute("SELECT * FROM documentos WHERE id=?", (did,)).fetchone()))
             con.execute("UPDATE documentos SET total=? WHERE id=?", (str(tot["total"]), did))

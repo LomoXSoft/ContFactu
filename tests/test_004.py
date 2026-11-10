@@ -49,8 +49,12 @@ def test_tipo_iva_valido():
     from app.calc import tipo_iva_valido
     assert tipo_iva_valido("7,5") == "7.5" and tipo_iva_valido("21") == "21" and tipo_iva_valido(" 5,25 %") == "5.25"
     assert tipo_iva_valido("0") == "0" and tipo_iva_valido("100") == "100" and tipo_iva_valido("10.00") == "10"
-    for malo in ("-1", "100,01", "7,555", "abc", "", "NaN", "1e3"):
-        with pytest.raises(ValueError):
+    assert tipo_iva_valido("7,555") == "7.555"
+    for malo in ("abc", "", "NaN"):
+        with pytest.raises(ValueError, match="no es válido"):
+            tipo_iva_valido(malo)
+    for malo in ("-1", "100,01", "150", "-0,01", "1e3"):
+        with pytest.raises(ValueError, match="entre 0 % y 100 %"):
             tipo_iva_valido(malo)
 
 def test_formato_pct_no_revienta_con_lo_que_escribe_el_usuario():
@@ -76,10 +80,21 @@ def test_factura_con_iva_7_5_y_cinco_tipos(con):
     assert {l["iva"] for l in ls} == {"21", "10", "7.5", "4", "0"}
 
 def test_iva_fuera_de_rango_se_rechaza(con):
+    from app import repo
     from app.repo import ErrorNegocio
-    for malo in ("101", "-4", "7,555", "veintiuno"):
-        with pytest.raises(ErrorNegocio, match="Línea 1"):
+    for malo in ("101", "-4", "150"):
+        with pytest.raises(ErrorNegocio, match="entre 0 % y 100 %") as exc:
             nueva(con, [L("A", 1, 100, malo)])
+        assert exc.value.campo == "iva" and exc.value.indice == 0
+    with pytest.raises(ErrorNegocio, match="no es válido") as exc:
+        nueva(con, [L("A", 1, 100, "veintiuno")])
+    assert exc.value.campo == "iva"
+    with pytest.raises(ErrorNegocio, match="El descuento debe estar entre 0 % y 100 %") as exc:
+        nueva(con, [L("A", 1, 100, "21", "101")])
+    assert exc.value.campo == "descuento" and exc.value.indice == 0
+    did = nueva(con, [L("A", 1, 100, "7,555", "12,5")])
+    d, ls, _ = repo.documento(con, did)
+    assert ls[0]["iva"] == "7.555" and ls[0]["descuento"] == "12.5"
 
 def test_documento_antiguo_sin_desglose_sigue_igual(con):
     from app.calc import totales_cabecera
@@ -202,7 +217,8 @@ def test_formulario_empresa_tabla_de_tipos(web, con):
     assert 'value="7,5"' in h and "Añadir tipo" in h
     r = web.post("/e/1/empresa", data={"nombre": "Empresa de Prueba SL", "nif": "B00000000", "codigo": "99999",
                                         "tipo_iva": ["21", "150"], "tipo_re": ["", ""]})
-    assert r.status_code == 400 and "fuera de rango" in r.text and 'value="150"' in r.text
+    assert r.status_code == 400 and "entre 0 % y 100 %" in r.text and 'value="150"' in r.text
+    assert 'name="tipo_iva"' in r.text and 'id="err-tipo_iva-1"' in r.text and 'aria-invalid="true"' in r.text
     r = web.post("/e/1/empresa", data={"nombre": "Empresa de Prueba SL", "nif": "B00000000", "codigo": "99999",
                                         "tipo_iva": ["21", "21"], "tipo_re": ["", ""]})
     assert r.status_code == 400 and "repetido" in r.text
@@ -218,20 +234,48 @@ def test_re_render_empresa_con_nif_malo_y_comas_no_da_500(web, con):
         r = web.post(url, data=cuerpo)
         assert r.status_code == 400, r.text[:400]
         assert "Internal Server Error" not in r.text
+        assert 'id="err-nif"' in r.text and 'aria-describedby="err-nif"' in r.text
+        assert 'name="nif"' in r.text and 'aria-invalid="true"' in r.text
+        assert 'id="err-cp"' not in r.text
         assert "no es válido" in r.text
         assert 'value="5,2"' in r.text and 'value="7,5"' in r.text and 'value="1,4"' in r.text
         assert "Crear empresa" in r.text or "Guardar" in r.text
+    cp = web.post("/empresas/nueva", data={"nombre": "Empresa Nueva SL", "nif": "B12345674", "codigo": "00004",
+                                           "cp": "123", "contador_inicial": "1", "tipo_iva": ["21"], "tipo_re": ["5,2"]})
+    assert cp.status_code == 400 and "Internal Server Error" not in cp.text
+    assert 'id="err-cp"' in cp.text and "5 cifras" in cp.text and 'aria-describedby="err-cp"' in cp.text
+    assert 'id="err-nif"' not in cp.text and 'value="5,2"' in cp.text
     raro = web.post("/empresas/nueva", data={"nombre": "Empresa Nueva SL", "nif": "B12345674", "codigo": "00003",
                                              "contador_inicial": "1", "tipo_iva": ["21", "abc", ""],
                                              "tipo_re": ["", "texto", ""]})
     assert raro.status_code == 400 and "Internal Server Error" not in raro.text
-    assert "abc" in raro.text and "texto" in raro.text and "no válido" in raro.text
+    assert 'value="abc"' in raro.text and 'value="texto"' in raro.text and 'id="err-tipo_iva-1"' in raro.text
+    assert "no es válido" in raro.text
     ok = web.post("/empresas/nueva", data={"nombre": "Empresa Nueva SL", "nif": "B12345674", "codigo": "00002",
                                            "contador_inicial": "1", "tipo_iva": ["21", "10"],
                                            "tipo_re": ["5,2", "1,4"]}, follow_redirects=False)
     assert ok.status_code == 303, ok.text[:400]
     e = repo.empresa(con, con.execute("SELECT id FROM empresas WHERE codigo='00002'").fetchone()[0])
     assert e["re_tasas"] == "21:5.2,10:1.4" and e["ivas"] == "21,10"
+
+def test_factura_y_cliente_avisan_en_el_campo(web):
+    r = web.post("/e/1/guardar/F", data={"fecha": "2026-03-10", "nombre_f": "Cliente Web", "n_lineas": "1",
+                                         "concepto_0": "Libro", "cantidad_0": "1", "precio_0": "100", "iva_0": "150",
+                                         "descuento_0": "0", "descuento": "0", "retencion": "0"})
+    assert r.status_code == 400 and 'id="err-iva-0"' in r.text and "El IVA debe estar entre 0 % y 100 %" in r.text
+    assert "Libro" in r.text and "Internal Server Error" not in r.text
+    r = web.post("/e/1/guardar/F", data={"fecha": "2026-03-10", "nombre_f": "Cliente Web", "n_lineas": "1",
+                                         "concepto_0": "Libro", "cantidad_0": "1", "precio_0": "100", "iva_0": "21",
+                                         "descuento_0": "120", "descuento": "0", "retencion": "0"})
+    assert r.status_code == 400 and 'id="err-descuento-0"' in r.text and 'data-indice="0"' in r.text
+    r = web.post("/e/1/guardar/F", data={"fecha": "2026-03-10", "nombre_f": "Cliente Web", "n_lineas": "1",
+                                         "concepto_0": "Libro", "cantidad_0": "1", "precio_0": "100", "iva_0": "21",
+                                         "descuento_0": "10,5", "descuento": "101", "retencion": "0"})
+    assert r.status_code == 400 and 'id="err-descuento"' in r.text and 'aria-describedby="err-descuento"' in r.text
+    assert 'id="err-descuento-0"' not in r.text
+    r = web.post("/e/1/clientes/guardar", data={"nombre": "Con descuento", "codigo": "C9", "descuento": "150,5"})
+    assert r.status_code == 400 and 'id="err-descuento"' in r.text and "El descuento debe estar entre 0 % y 100 %" in r.text
+    assert 'value="150,5"' in r.text or "150,5" in r.text
 
 def test_formulario_factura_iva_libre(web, con):
     form = {"fecha": "2026-03-10", "nombre_f": "Cliente Web", "nif": "1", "descuento": "0", "retencion": "0", "re": "0",
@@ -243,7 +287,7 @@ def test_formulario_factura_iva_libre(web, con):
     from app import repo
     assert repo.doc(con, did)["total"] == "228.50"
     h = web.get("/e/1/nuevo/F").text
-    assert 'list="ivas"' in h and "pattern=" in h
+    assert 'list="ivas"' in h and 'min="0"' in h and 'max="100"' in h
 
 # ======================================================================================== 1. copias de seguridad
 def _logo(entorno):

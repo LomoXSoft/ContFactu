@@ -34,7 +34,10 @@ consumirá (`docs/api-movil.md`).
 ### Corregido
 - Al crear o modificar una empresa, un dato rechazado (por ejemplo un NIF no válido) volvía a pintar el
   formulario y, si un tipo de IVA o un recargo llevaba coma, espacios o un texto, la ventana se quedaba en
-  «Internal Server Error». El aviso se muestra y los valores escritos se conservan. El fallo ya estaba en la 0.1.0.
+  «Internal Server Error». El aviso sale ahora en el propio campo (NIF, código postal, IVA, recargo, descuento…)
+  y se conserva lo escrito. El fallo del re-render ya estaba en la 0.1.0.
+- Un tipo de IVA, un recargo de equivalencia o un descuento en porcentaje solo se acepta entre 0 % y 100 %,
+  ambos incluidos, con los decimales que se escriban. Vale en el formulario, en la ficha del cliente y en la API del móvil.
 
 ### Dependencias
 - `cryptography`, para crear el certificado del acceso móvil. No se usa mientras la opción está desactivada.

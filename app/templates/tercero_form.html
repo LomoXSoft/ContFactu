@@ -1,30 +1,30 @@
-{% extends "base.html" %}{% block c %}
+{% extends "base.html" %}{% from "_campo.html" import inv, aviso_campo with context %}{% block c %}
 <form method="post" action="/e/{{e.id}}/{{tabla}}/guardar" class="card" style="max-width:980px;margin:auto">
 <h2>{{ico(F[0],24)}}{% if nuevo %}Nuevo {{F[1]|lower}}{% else %}{{F[1]}} {{x.codigo}} · {{x.nombre}}{% endif %}</h2>
 {% if x.id %}<input type="hidden" name="id" value="{{x.id}}">{% endif %}
-{% if error %}<div class="aviso error" style="margin-bottom:.8rem">⚠ {{error}}</div>{% endif %}
+{% if err and not err.campo %}<p class="errcampo" role="alert">{{ err.mensaje }}</p>{% endif %}
 {% if ok %}<div class="okmsg" style="margin-bottom:.8rem">✔ Ficha guardada.</div>{% endif %}
 <div class="grid">
-<label>Código<input name="codigo" maxlength="10" value="{{x.codigo or ''}}"></label>
-<label style="grid-column:span 2">Nombre *<input name="nombre" required maxlength="120" value="{{x.nombre or ''}}" autofocus></label>
+<label>Código<input name="codigo" maxlength="10" value="{{x.codigo or ''}}"{{ inv('codigo') }}>{{ aviso_campo('codigo') }}</label>
+<label style="grid-column:span 2">Nombre *<input name="nombre" required maxlength="120" value="{{x.nombre or ''}}" autofocus{{ inv('nombre') }}>{{ aviso_campo('nombre') }}</label>
 <label>NIF / CIF<input name="nif" maxlength="15" value="{{x.nif or ''}}" style="text-transform:uppercase"></label>
 <label style="grid-column:span 2">Nombre fiscal (si es distinto)<input name="nombre_f" maxlength="120" value="{{x.nombre_f or ''}}"></label>
 <label style="grid-column:span 2">Dirección<input name="direccion" maxlength="120" value="{{x.direccion or ''}}"></label>
 <label style="grid-column:span 2">Población (CP y localidad)<input name="ciudad" maxlength="80" value="{{x.ciudad or ''}}" placeholder="28001 Madrid"></label>
 <label>Teléfono<input name="telefono" maxlength="30" value="{{x.telefono or ''}}"></label>
 <label>Móvil<input name="movil" maxlength="30" value="{{x.movil or ''}}"></label>
-<label>Correo electrónico<input name="email" type="email" maxlength="80" value="{{x.email or ''}}"></label>
+<label>Correo electrónico<input name="email" type="email" maxlength="80" value="{{x.email or ''}}"{{ inv('email') }}>{{ aviso_campo('email') }}</label>
 <label>Persona de contacto<input name="contacto" maxlength="60" value="{{x.contacto or ''}}"></label>
 <label>Forma de pago<input name="forma_pago" maxlength="60" value="{{x.forma_pago or ''}}" placeholder="Transferencia / Recibo / Contado"></label>
 <label>Días de pago<input name="dias_pago" maxlength="20" value="{{x.dias_pago or ''}}" placeholder="30 o 30,60"></label>
 {% if tabla == 'clientes' %}
-<label>Descuento habitual %<input name="descuento" maxlength="6" value="{{x.descuento or ''}}"></label>
+<label>Descuento habitual %<input name="descuento" min="0" max="100" inputmode="decimal" maxlength="24" value="{{x.descuento or ''}}"{{ inv('descuento') }}>{{ aviso_campo('descuento') }}</label>
 <label>Recargo de equivalencia<select name="recargo"><option value="0">No</option><option value="1" {{'selected' if x.recargo in (1,'1')}}>Sí</option></select></label>
 <label style="grid-column:span 2">Cuenta (IBAN) para domiciliar recibos<input name="ccc" maxlength="34" value="{{x.ccc or ''}}"></label>
 <label>BIC<input name="bic" maxlength="11" value="{{x.bic or ''}}"></label>
 <label>Banco (domiciliación)<input name="domiciliacion" maxlength="60" value="{{x.domiciliacion or ''}}"></label>
 {% else %}
-<label>Retención IRPF %<input name="retencion" maxlength="6" value="{{x.retencion or ''}}" placeholder="p. ej. 15 (profesionales)"></label>
+<label>Retención IRPF %<input name="retencion" maxlength="24" value="{{x.retencion or ''}}" placeholder="p. ej. 15 (profesionales)"{{ inv('retencion') }}>{{ aviso_campo('retencion') }}</label>
 {% endif %}
 </div>
 <p class="acciones" style="margin-top:1.2rem"><button class="btn">{{ico('guardar')}}Guardar</button>

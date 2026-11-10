@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from .db import connect, db_path
 from . import repo
 from .repo import ErrorNegocio, AvisoNumeracion
-from .calc import totales_cabecera, importe_linea, fmt_eur, dec, formato_pct
+from .calc import totales_cabecera, importe_linea, fmt_eur, dec, formato_pct, tipo_iva_valido, descuento_valido
 from .fmt_pdf import render_pdf, render_recibos, titulo_documento
 from .importer import NOMBRES_TIPO
 
@@ -50,7 +50,7 @@ def _doc(con, did):
         raise HTTPException(404, "Documento no encontrado")
     return d, ls, ps
 
-def _n(v, defecto="0"):
+def _n(v, defecto="0", campo=None, indice=None):
     v = (v or "").strip().replace(" ", "")
     if not v:
         return defecto
@@ -59,8 +59,12 @@ def _n(v, defecto="0"):
     try:
         dec(v)
     except Exception:
-        raise ErrorNegocio(f"Número no válido: «{v}»")
+        raise ErrorNegocio(f"Número no válido: «{v}».", campo=campo, indice=indice)
     return v
+
+def _err(ex):
+    """Lo que la plantilla necesita para marcar un campo. Sin campo, el aviso va arriba, discreto."""
+    return {"mensaje": str(ex), "campo": ex.campo, "indice": ex.indice}
 
 # ------------------------------------------------------------------------------------------------ inicio
 @app.get("/", response_class=HTMLResponse)
@@ -102,16 +106,16 @@ async def _guardar_logo(con, eid, subido):
         return
     ext = os.path.splitext(subido.filename)[1].lower()
     if ext not in (".png", ".jpg", ".jpeg"):
-        raise ErrorNegocio("El logotipo debe ser una imagen PNG o JPG.")
+        raise ErrorNegocio("El logotipo debe ser una imagen PNG o JPG.", campo="logo")
     datos = await subido.read()
     if len(datos) > 2 * 1024 * 1024:
-        raise ErrorNegocio("El logotipo es demasiado grande (máximo 2 MB).")
+        raise ErrorNegocio("El logotipo es demasiado grande (máximo 2 MB).", campo="logo")
     try:
         from PIL import Image
         import io as _io
         Image.open(_io.BytesIO(datos)).verify()
     except Exception:
-        raise ErrorNegocio("El archivo del logotipo no es una imagen válida.")
+        raise ErrorNegocio("El archivo del logotipo no es una imagen válida.", campo="logo")
     carpeta = data_dir() / "logos"; carpeta.mkdir(parents=True, exist_ok=True)
     nombre = f"empresa_{eid}{'.jpg' if ext == '.jpeg' else ext}"
     for viejo in carpeta.glob(f"empresa_{eid}.*"):
@@ -143,7 +147,7 @@ async def empresa_crear(request: Request):
             await _guardar_logo(con, eid, f.get("logo"))
     except ErrorNegocio as ex:
         x = _x_empresa_error(f)
-        return tpl.TemplateResponse(request, "empresa_form.html", {"x": x, "nueva": True, "error": str(ex), "anio": repo.hoy()[2:4],
+        return tpl.TemplateResponse(request, "empresa_form.html", {"x": x, "nueva": True, "err": _err(ex), "anio": repo.hoy()[2:4],
                                                                    "hay": bool(repo.empresas(con))}, status_code=400)
     return RedirectResponse(f"/e/{eid}/documentos?tipo=F&ok=empresa", status_code=303)
 
@@ -167,7 +171,7 @@ async def empresa_guardar(request: Request, eid: int):
                 altas.poner_logo(con, eid, None)
     except ErrorNegocio as ex:
         return tpl.TemplateResponse(request, "empresa_form.html", {"e": e, "x": _x_empresa_error(f, eid), "nueva": False,
-                                    "error": str(ex), "anio": repo.hoy()[2:4], "logo": _logo_ruta(e) is not None}, status_code=400)
+                                    "err": _err(ex), "anio": repo.hoy()[2:4], "logo": _logo_ruta(e) is not None}, status_code=400)
     return RedirectResponse(f"/e/{eid}/empresa?ok=1", status_code=303)
 
 @app.get("/e/{eid}/logo")
@@ -210,7 +214,7 @@ async def tercero_guardar(request: Request, eid: int, tabla: str):
             tid = altas.guardar_tercero(con, eid, tabla, dict(f), tid)
     except ErrorNegocio as ex:
         return tpl.TemplateResponse(request, "tercero_form.html", {"e": e, "tabla": tabla, "F": FICHAS[tabla], "x": dict(f),
-                                    "nuevo": not tid, "error": str(ex)}, status_code=400)
+                                    "nuevo": not tid, "err": _err(ex)}, status_code=400)
     if f.get("volver"):
         return RedirectResponse(f"/e/{eid}/{tabla}?ok=guardado", status_code=303)
     return RedirectResponse(f"/e/{eid}/{tabla}/{tid}?ok=guardado", status_code=303)
@@ -367,20 +371,42 @@ async def enviar_documento(request: Request, did: int):
     return RedirectResponse(f"/d/{did}?ok=enviado", status_code=303)
 
 # ------------------------------------------------------------------------------------------------ alta / edición
-def _form_contexto(con, e, tipo, d=None, lineas=None, aviso_legal=None, pre=None):
+def _form_contexto(con, e, tipo, d=None, lineas=None, aviso_legal=None, pre=None, nuevo=None, con_re=None, err=None):
     tabla = "proveedores" if tipo == "G" else "clientes"
     terceros = [dict(c) for c in con.execute(f"SELECT * FROM {tabla} WHERE empresa_id=? ORDER BY nombre", (e["id"],))]
     hoy = repo.hoy()
     serie = (e.get("serie_defecto") or "") if tipo == "F" else ""
-    sig = repo.siguiente_numero(con, e["id"], tipo, serie, hoy) if d is None else None
+    es_nuevo = (d is None) if nuevo is None else nuevo
+    sig = repo.siguiente_numero(con, e["id"], tipo, serie, hoy) if es_nuevo else None
     ls = [{k: l.get(k) for k in ("codigo", "concepto", "cantidad", "precio", "descuento", "iva", "comentario")} for l in (lineas or [])]
-    return {"e": e, "tipo": tipo, "d": d or dict({"fecha": hoy, "descuento": "0", "retencion": "0"}, **(pre or {})), "nuevo": d is None,
+    if con_re is None:
+        con_re = d is not None and repo._con_re(d)
+    return {"e": e, "tipo": tipo, "d": d or dict({"fecha": hoy, "descuento": "0", "retencion": "0"}, **(pre or {})), "nuevo": es_nuevo,
             "terceros_json": json.dumps([{k: c.get(k) for k in ("codigo", "nombre", "nombre_f", "direccion", "direccion_f", "ciudad",
                                          "ciudad_f", "nif", "forma_pago", "recargo", "retencion")} for c in terceros], ensure_ascii=False),
             "terceros": terceros, "lineas_json": json.dumps(ls, ensure_ascii=False), "siguiente": sig,
-            "con_re": d is not None and repo._con_re(d), "aviso_legal": aviso_legal,
+            "con_re": con_re, "aviso_legal": aviso_legal, "err": err,
             "serie_defecto": serie, "ivas": altas.ivas_de(e),
             "tasas_re_json": json.dumps({k: float(v) for k, v in altas.tasas_re_de(e).items()})}
+
+def _lineas_crudas(f):
+    """Filas tal como se enviaron, para volver a pintarlas si hay un error. El índice coincide con el del formulario."""
+    res = []
+    for i in range(int(f.get("n_lineas", 0) or 0)):
+        precio = f.get(f"precio_{i}") or ""
+        res.append({"codigo": f.get(f"codigo_{i}") or "", "concepto": f.get(f"concepto_{i}") or "",
+                    "cantidad": f.get(f"cantidad_{i}") or "", "precio": precio,
+                    "descuento": f.get(f"descuento_{i}") or "", "iva": f.get(f"iva_{i}") or "",
+                    "comentario": not precio.strip()})
+    return res
+
+def _cabecera_cruda(f, did=None):
+    d = {k: (f.get(k) or "") for k in ("fecha", "serie", "nombre_f", "direccion_f", "ciudad_f", "nif", "forma_pago",
+                                       "cliente_codigo", "num_factura_proveedor", "domiciliacion", "ccc", "descuento", "retencion")}
+    d["iva_incluido"] = 1 if f.get("iva_incluido") == "1" else 0
+    if did:
+        d["id"] = did
+    return d
 
 @app.get("/e/{eid}/nueva")
 def nueva_compat(eid: int, cliente: str = ""):
@@ -414,8 +440,7 @@ def editar(request: Request, did: int):
                  "ni la ha declarado. Si ya la tiene el cliente, lo correcto es emitir una factura rectificativa.")
     return tpl.TemplateResponse(request, "documento_form.html", _form_contexto(con, e, d["tipo"], d, ls, aviso))
 
-async def _leer_form(request):
-    f = await request.form()
+def _leer_form(f):
     lineas = []
     for i in range(int(f.get("n_lineas", 0) or 0)):
         concepto = (f.get(f"concepto_{i}") or "").strip()
@@ -423,28 +448,52 @@ async def _leer_form(request):
         if not concepto and not precio:
             continue
         coment = not precio
-        lineas.append({"codigo": f.get(f"codigo_{i}"), "concepto": concepto, "cantidad": _n(f.get(f"cantidad_{i}"), "1"),
-                       "precio": "" if coment else _n(precio), "descuento": _n(f.get(f"descuento_{i}")),
-                       "iva": (f.get(f"iva_{i}") or "").strip() or "21", "comentario": coment})
+        try:
+            iva = "21" if coment or not (f.get(f"iva_{i}") or "").strip() else tipo_iva_valido(f.get(f"iva_{i}"))
+        except ValueError as ex:
+            raise ErrorNegocio(str(ex), campo="iva", indice=i)
+        try:
+            dto = "" if coment else descuento_valido(f.get(f"descuento_{i}"))
+        except ValueError as ex:
+            raise ErrorNegocio(str(ex), campo="descuento", indice=i)
+        lineas.append({"codigo": f.get(f"codigo_{i}"), "concepto": concepto,
+                       "cantidad": _n(f.get(f"cantidad_{i}"), "1", campo="cantidad", indice=i),
+                       "precio": "" if coment else _n(precio, campo="precio", indice=i),
+                       "descuento": dto, "iva": iva, "comentario": coment})
     datos = {k: (f.get(k) or "").strip() or None for k in ("fecha", "serie", "nombre_f", "direccion_f", "ciudad_f", "nif", "forma_pago",
                                                           "cliente_codigo", "num_factura_proveedor", "domiciliacion", "ccc")}
-    datos["descuento"] = _n(f.get("descuento"))
-    datos["retencion"] = _n(f.get("retencion"))
+    try:
+        datos["descuento"] = descuento_valido(f.get("descuento"))
+    except ValueError as ex:
+        raise ErrorNegocio(str(ex), campo="descuento")
+    datos["retencion"] = _n(f.get("retencion"), campo="retencion")
     datos["re"] = f.get("re") == "1"
     datos["iva_incluido"] = f.get("iva_incluido") == "1"
     if not datos.get("nombre_f"):
-        raise ErrorNegocio("Falta el nombre del cliente o proveedor.")
-    return f, datos, lineas
+        raise ErrorNegocio("Falta el nombre del cliente o proveedor.", campo="nombre_f")
+    return datos, lineas
+
+def _documento_con_error(request, con, e, tipo, f, ex, did=None, rectifica=None, modo=None):
+    ctx = _form_contexto(con, e, tipo, _cabecera_cruda(f, did), _lineas_crudas(f), nuevo=did is None and rectifica is None,
+                         con_re=f.get("re") == "1", err=_err(ex))
+    if rectifica is not None:
+        ctx.update(rectifica=rectifica, modo=modo or "I", nuevo=True,
+                   siguiente=repo.siguiente_numero(con, e["id"], "F", repo.SERIE_RECTIFICATIVA, repo.hoy()))
+    return tpl.TemplateResponse(request, "documento_form.html", ctx, status_code=400)
 
 @app.post("/e/{eid}/guardar/{tipo}")
 async def guardar(request: Request, eid: int, tipo: str):
-    con = db(); _emp(con, eid)
-    f, datos, lineas = await _leer_form(request)
+    con = db(); e = _emp(con, eid)
+    f = await request.form()
     did = int(f.get("id")) if f.get("id") else None
-    if did:
-        datos.pop("serie", None)
-    with con:
-        did = repo.guardar_documento(con, eid, tipo, datos, lineas, did)
+    try:
+        datos, lineas = _leer_form(f)
+        if did:
+            datos.pop("serie", None)
+        with con:
+            did = repo.guardar_documento(con, eid, tipo, datos, lineas, did)
+    except ErrorNegocio as ex:
+        return _documento_con_error(request, con, e, tipo, f, ex, did=int(f.get("id")) if f.get("id") else None)
     return RedirectResponse(f"/d/{did}?ok=guardado", status_code=303)
 
 @app.post("/e/{eid}/nueva")  # compatibilidad con la primera versión
@@ -483,11 +532,16 @@ def rectificar_form(request: Request, did: int, modo: str = "I"):
 
 @app.post("/d/{did}/rectificar")
 async def rectificar(request: Request, did: int):
-    con = db(); _doc(con, did)
-    f, datos, lineas = await _leer_form(request)
-    with con:
-        nid = repo.crear_rectificativa(con, did, f.get("rect_tipo"), f.get("rect_motivo"), f.get("codigo_r") or "R4",
-                                       datos.get("fecha"), lineas, cabecera=datos)
+    con = db(); d, _, _ = _doc(con, did)
+    e = _emp(con, d["empresa_id"])
+    f = await request.form()
+    try:
+        datos, lineas = _leer_form(f)
+        with con:
+            nid = repo.crear_rectificativa(con, did, f.get("rect_tipo"), f.get("rect_motivo"), f.get("codigo_r") or "R4",
+                                           datos.get("fecha"), lineas, cabecera=datos)
+    except ErrorNegocio as ex:
+        return _documento_con_error(request, con, e, "F", f, ex, rectifica=d, modo="S" if f.get("rect_tipo") == "S" else "I")
     return RedirectResponse(f"/d/{nid}?ok=rectificativa", status_code=303)
 
 # ------------------------------------------------------------------------------------------------ cobros y recibos
