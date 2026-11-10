@@ -65,6 +65,17 @@ def tipo_iva_valido(v):
         raise ValueError(f"Tipo con demasiados decimales: «{v}». Use como máximo dos (p. ej. 5,25).")
     return format(d.normalize() + 0, "f")
 
+def formato_pct(v):
+    """Porcentaje para mostrarlo en un formulario: coma decimal si el valor se puede leer.
+    Si no es un número (lo que el usuario acaba de escribir y el programa ha rechazado), devuelve el texto tal cual.
+    Nunca lanza: así volver a pintar el formulario no acaba en un error 500."""
+    if v is None or v == "":
+        return ""
+    try:
+        return format(dec(tipo_iva_valido(v)).normalize(), "f").replace(".", ",")
+    except (ValueError, InvalidOperation, ArithmeticError):
+        return str(v)
+
 def totales_cabecera(doc):
     """Total de un documento con las bases/tipos de su cabecera."""
     base = cuota_iva = cuota_re = D(0)

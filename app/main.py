@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from .db import connect, db_path
 from . import repo
 from .repo import ErrorNegocio, AvisoNumeracion
-from .calc import totales_cabecera, importe_linea, fmt_eur, dec
+from .calc import totales_cabecera, importe_linea, fmt_eur, dec, formato_pct
 from .fmt_pdf import render_pdf, render_recibos, titulo_documento
 from .importer import NOMBRES_TIPO
 
@@ -21,7 +21,7 @@ tpl = Jinja2Templates(directory=str(recursos()))
 tpl.env.filters["eur"] = lambda v: fmt_eur(v or 0)
 tpl.env.filters["fecha"] = lambda s: f"{s[8:10]}/{s[5:7]}/{s[:4]}" if s else ""
 tpl.env.filters["num"] = repo.num_visible
-tpl.env.filters["pct"] = lambda v: format(dec(v).normalize(), "f").replace(".", ",") if v not in (None, "") else ""
+tpl.env.filters["pct"] = formato_pct
 from . import iconos, __version__ as VERSION
 tpl.env.globals["ico"] = iconos.svg
 tpl.env.globals["ICONO_TIPO"] = iconos.TIPO_ICONO

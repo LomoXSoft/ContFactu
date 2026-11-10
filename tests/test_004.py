@@ -53,6 +53,12 @@ def test_tipo_iva_valido():
         with pytest.raises(ValueError):
             tipo_iva_valido(malo)
 
+def test_formato_pct_no_revienta_con_lo_que_escribe_el_usuario():
+    from app.calc import formato_pct
+    assert formato_pct("5,2") == "5,2" and formato_pct("5.2") == "5,2" and formato_pct(" 7,5 %") == "7,5"
+    assert formato_pct("21") == "21" and formato_pct(None) == "" and formato_pct("") == ""
+    assert formato_pct("abc") == "abc" and formato_pct("150") == "150" and formato_pct("5,2 %") == "5,2"
+
 def test_factura_con_iva_7_5_y_cinco_tipos(con):
     from app import repo
     from app.calc import totales_cabecera
@@ -200,6 +206,32 @@ def test_formulario_empresa_tabla_de_tipos(web, con):
     r = web.post("/e/1/empresa", data={"nombre": "Empresa de Prueba SL", "nif": "B00000000", "codigo": "99999",
                                         "tipo_iva": ["21", "21"], "tipo_re": ["", ""]})
     assert r.status_code == 400 and "repetido" in r.text
+
+def test_re_render_empresa_con_nif_malo_y_comas_no_da_500(web, con):
+    """Un NIF rechazado no puede dejar la ventana en «Internal Server Error» al volver a pintar los tipos."""
+    from app import repo
+    datos = {"nombre": "Empresa Nueva SL", "nif": "TEST", "codigo": "00002", "contador_inicial": "1",
+             "tipo_iva": ["21", "7,5", ""], "tipo_re": ["5,2", "1,4", ""]}
+    for url in ("/empresas/nueva", "/e/1/empresa"):
+        cuerpo = dict(datos, codigo="99999" if url != "/empresas/nueva" else "00002",
+                      nombre="Empresa de Prueba SL" if url != "/empresas/nueva" else datos["nombre"])
+        r = web.post(url, data=cuerpo)
+        assert r.status_code == 400, r.text[:400]
+        assert "Internal Server Error" not in r.text
+        assert "no es válido" in r.text
+        assert 'value="5,2"' in r.text and 'value="7,5"' in r.text and 'value="1,4"' in r.text
+        assert "Crear empresa" in r.text or "Guardar" in r.text
+    raro = web.post("/empresas/nueva", data={"nombre": "Empresa Nueva SL", "nif": "B12345674", "codigo": "00003",
+                                             "contador_inicial": "1", "tipo_iva": ["21", "abc", ""],
+                                             "tipo_re": ["", "texto", ""]})
+    assert raro.status_code == 400 and "Internal Server Error" not in raro.text
+    assert "abc" in raro.text and "texto" in raro.text and "no válido" in raro.text
+    ok = web.post("/empresas/nueva", data={"nombre": "Empresa Nueva SL", "nif": "B12345674", "codigo": "00002",
+                                           "contador_inicial": "1", "tipo_iva": ["21", "10"],
+                                           "tipo_re": ["5,2", "1,4"]}, follow_redirects=False)
+    assert ok.status_code == 303, ok.text[:400]
+    e = repo.empresa(con, con.execute("SELECT id FROM empresas WHERE codigo='00002'").fetchone()[0])
+    assert e["re_tasas"] == "21:5.2,10:1.4" and e["ivas"] == "21,10"
 
 def test_formulario_factura_iva_libre(web, con):
     form = {"fecha": "2026-03-10", "nombre_f": "Cliente Web", "nif": "1", "descuento": "0", "retencion": "0", "re": "0",

@@ -31,6 +31,11 @@ consumirá (`docs/api-movil.md`).
 - Esquema 5 (tabla `dispositivos_movil`). Una base de la 0.1.0 se copia antes de crearla y conserva
   empresas, facturas y clientes. La opción queda desactivada.
 
+### Corregido
+- Al crear o modificar una empresa, un dato rechazado (por ejemplo un NIF no válido) volvía a pintar el
+  formulario y, si un tipo de IVA o un recargo llevaba coma, espacios o un texto, la ventana se quedaba en
+  «Internal Server Error». El aviso se muestra y los valores escritos se conservan. El fallo ya estaba en la 0.1.0.
+
 ### Dependencias
 - `cryptography`, para crear el certificado del acceso móvil. No se usa mientras la opción está desactivada.
 
